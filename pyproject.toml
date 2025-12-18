@@ -1,0 +1,195 @@
+[tool.poetry]
+name = "pb-studio"
+version = "0.1.0"
+description = "Precision Beat Video Studio - Musiksynchrone Videobearbeitung mit harten Schnitten"
+authors = ["PB_studio Team"]
+license = "Proprietary"
+readme = "README.md"
+packages = [{include = "pb_studio", from = "src"}]
+
+[tool.poetry.dependencies]
+# Eingesetzter Runtime-Zielbereich: 3.10â€“3.12 (PyInstaller <3.13-Constraint)
+python = ">=3.10,<3.13"
+# GUI Frameworks
+PyQt6 = "^6.6.0"
+dearpygui = "^1.10.1"
+
+# Database
+sqlalchemy = "^2.0.0"
+pydantic = "^2.5.0"
+duckdb = "^0.9.0"  # Wieder aktiviert mit Python 3.10
+
+# Audio Analysis
+librosa = "^0.10.1"
+# essentia-tensorflow = "^2.1b6"  # Wird spÃ¤ter manuell installiert (Windows-kompatibilitÃ¤tsprobleme)
+soundfile = "^0.12.1"
+numpy = ">=1.26,<2.0"  # Torch/Numba kompatibel, vermeidet NumPy 2 ABI-Bruch
+
+# Vector Search - Multi-Platform Support (choose one or let auto-detection handle it)
+faiss-cpu = {version = "^1.13.0", optional = true, python = ">=3.10,<3.15"}   # CPU-only (all platforms) - actively maintained
+# faiss-gpu DISCONTINUED since 2022 - use qdrant-client for GPU acceleration or conda-based faiss-gpu
+qdrant-client = {version = "^1.11.0", optional = true}  # GPU alternative (faster, actively maintained)
+
+# Video Processing
+ffmpeg-python = "^0.2.0"
+scenedetect = {extras = ["opencv"], version = "^0.6.3"}
+Pillow = "^10.0.0"
+
+# AI/ML (PyTorch wird separat installiert basierend auf Hardware)
+torch = {version = ">=2.4.1,<2.5.0", optional = true}
+torch-directml = {version = "*", optional = true, platform = "win32"}  # DirectML (Auto-version)
+demucs = {version = "^4.0.0", optional = true}
+transformers = ">=4.36.0,<4.37.0"
+ultralytics = "^8.3.0"
+clip = {git = "https://github.com/openai/CLIP.git", optional = true}
+
+# KI-Video-Analyse (X-CLIP fÃ¼r 512D Video-Embeddings)
+av = {version = "^12.0.0", optional = true}  # PyAV fÃ¼r Video-Frame-Decoding
+accelerate = {version = "^0.25.0", optional = true}  # HuggingFace Accelerate fÃ¼r GPU
+onnxruntime = {version = "^1.17.0", optional = true}  # CPU / AMD
+onnxruntime-gpu = {version = "^1.17.0", optional = true, platform = "win32"}  # NVIDIA GPU (Windows)
+onnxruntime-directml = {version = "^1.17.0", optional = true, platform = "win32"}  # AMD GPU (Windows, DirectML)
+
+# Utilities
+python-dotenv = "^1.0.0"
+python-magic = "^0.4.27"
+python-magic-bin = {version = "^0.4.14", platform = "win32"}
+wmi = {version = "^1.5.1", platform = "win32"}
+pywin32 = {version = "^306", platform = "win32"}
+typing-extensions = "^4.15.0"
+resampy = "^0.4.3"
+defusedxml = "^0.7.1"
+scikit-image = ">=0.22,<0.25"
+
+[tool.poetry.group.dev.dependencies]
+# Testing
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.21.0"
+
+# Code Quality
+black = "^23.12.0"
+ruff = "^0.1.8"
+mypy = "^1.7.0"
+
+# Documentation
+sphinx = "^7.2.0"
+
+# Packaging
+pyinstaller = "^6.3.0"
+
+[tool.poetry.extras]
+# Vector Search Platform Support
+vector-cpu = ["faiss-cpu"]           # CPU-only mode (default)
+# vector-nvidia REMOVED - faiss-gpu discontinued, use qdrant-client instead
+vector-amd = ["qdrant-client"]       # GPU alternative (optimized, actively maintained)
+vector-all = ["faiss-cpu", "qdrant-client"]  # All options (auto-detection)
+
+# Hardware-spezifische Dependencies werden vom Installer hinzugefÃ¼gt
+cuda = ["torch", "demucs"]
+
+# KI-Video-Analyse (X-CLIP 512D Embeddings)
+ai-video = ["torch", "av", "accelerate", "onnxruntime-gpu"]  # VollstÃ¤ndig mit GPU (CUDA/DirectML)
+ai-cpu = ["av", "onnxruntime"]  # Nur CPU/AMD (transformers ist Basis-Dependency)
+ai-nvidia = ["torch", "av", "accelerate", "onnxruntime-gpu"]  # NVIDIA-spezifisch
+ai-amd = ["av", "accelerate", "onnxruntime-directml", "torch-directml"]  # AMD/DirectML inkl. Torch-DirectML
+# CLIP Videoanalyse (OpenAI CLIP)
+clip-video = ["clip", "torch"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 100
+target-version = ['py310']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "E402",  # module level import not at top (needed for some sys.path modifications)
+    "B007",  # unused loop variable (often intentional)
+    "F841",  # local variable assigned but never used (often intentional for clarity)
+    "E722",  # bare except (sometimes necessary for compatibility)
+    "C401",  # unnecessary generator (set comprehensions not always better)
+    "B905",  # zip without explicit strict (not needed for Python 3.10)
+    "F401",  # unused import (often for dynamic checking)
+    "F821",  # undefined name (sometimes valid)
+    "E712",  # comparison to boolean literal (sometimes intentional)
+    "UP022", # prefer capture_output (legacy compatibility)
+    "B904",  # raise from (not always necessary)
+    "E902",  # invalid UTF-8 (file encoding issues)
+    "W293",  # blank line contains whitespace (formatting preference)
+    "E711",  # comparison to None (sometimes intentional)
+    "B027",  # empty method in ABC (sometimes valid design pattern)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"scripts/*.py" = ["E402", "F401", "F841"]
+"tests/*.py" = ["F401", "F841", "B007"]
+"examples/*.py" = ["F401", "F841"]
+"**/test_*.py" = ["F401", "F841", "B007", "E712"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --cov=src --cov-report=term-missing"
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gpu: marks tests as requiring GPU",
+    "integration: marks tests as integration tests"
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "**/__init__.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

@@ -1,0 +1,408 @@
+# ============================================================================
+# Gitignore für PB_studio
+# ============================================================================
+#
+# Diese Datei stellt sicher, dass generierte Dateien, temporäre Dateien,
+# grosse Medien-Assets und benutzerspezifische Konfigurationen nicht
+# in das Git-Repository aufgenommen werden.
+
+# --- Python ---
+# Virtual Environment
+.venv/
+venv/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS personal files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- PB_studio Spezifisch ---
+# Log-Dateien und Verzeichnisse
+logs/
+*.log
+
+# Test-Ausgaben und Zusammenfassungen
+test_output.txt
+test_summary.txt
+
+# Medien-Assets (Audio, Video, Exporte)
+# Die Verzeichnisse selbst bleiben erhalten (falls leer), aber ihr Inhalt wird ignoriert.
+audio/*
+video/*
+exports/*
+
+# Temporäre Dateien und Cache
+temp/
+cache/
+.archive/
+
+# Datenbank-Dateien
+data/*.db
+data/*.duckdb
+data/ai_models/
+
+# --- System- und Editor-Dateien ---
+# Windows Desktop-Verknüpfungen
+*.lnk
+
+# IDE- und Editor-Konfigurationen
+.idea/
+.vscode/
+
+# --- Sonstiges ---
+# Platzhalter für "Taskmaster"-Dateien/Verzeichnisse, wie angefordert
+Taskmaster/
+*Taskmaster*
+thumbnails/thumb_2b0603068e0860e6aa99e63bf23f58d3.jpg
+.project/docs/RECHERCHE_TEIL1_FARBPALETTE.md
+.project/App Sepc.md
+.project/Projektvision & Technisches Design-Dokument_ PB_studio.md
+.project/Technische und kreative Beschreibung des Pacing-Konzepts.md
+.project/docs/IMPLEMENTIERUNGSPLAN_VIDEO_ANALYSE.md
+.project/docs/PACING_ENGINE_VERBESSERUNGSKONZEPT.md
+.project/docs/RECHERCHE_TEIL2_BEWEGUNGSART.md
+.project/docs/RECHERCHE_TEIL3_SZENENTYP.md
+.project/docs/RECHERCHE_TEIL4_MOOD.md
+.project/docs/RECHERCHE_TEIL5_SZENENINHALT.md
+.project/docs/RECHERCHE_TEIL6_STYLE.md
+.project/docs/RECHERCHE_TEIL7_AEHNLICHKEIT.md
+.project/docs/RECHERCHE_TEIL8_DATENBANK.md
+.project/docs/RECHERCHE_ZUSAMMENFASSUNG.md
+PERFORMANCE_ANALYSIS_REPORT.md
+PHASE1_IMPLEMENTATION_SUMMARY.md
+test_clips/clip_fast.mp4
+test_clips/clip_medium.mp4
+test_clips/clip_slow.mp4
+test_clips/clip_still.mp4
+test_clips/clip_very_fast.mp4
+False.mp4
+test_audio_1h.wav
+test_audio_10min.wav
+.claude/context.md
+.claude/settings.local.json
+.claude-flow/metrics/agent-metrics.json
+.claude-flow/metrics/performance.json
+.claude-flow/metrics/task-metrics.json
+.openmcp/connection.json
+thumbnails/thumb_5e8087c9b4d00fd4393514b52dc131c4.jpg
+thumbnails/thumb_0bd163d9367d54ce1bad4812ad0a2506.jpg
+thumbnails/thumb_1a6a23e9af2e4d4585de5cd0c1ffa124.jpg
+thumbnails/thumb_1cb9d58ee48753c3c0a4ed2a6429c872.jpg
+thumbnails/thumb_2b92021a50d4f2cdf809d701e4e24d64.jpg
+thumbnails/thumb_02cd9af3ac5bcf3bf8b05dbc7a236390.jpg
+thumbnails/thumb_2fa84fa3dbbeaefc25695f5404685791.jpg
+thumbnails/thumb_3a2ab05533355457db2e132151a6b16e.jpg
+thumbnails/thumb_3a6a3641502706ada4a769817f6eb881.jpg
+thumbnails/thumb_3b208b41752ee379380ce96d95b94eff.jpg
+thumbnails/thumb_3bb9f86a51a82ebf5e301e2719f9a91c.jpg
+thumbnails/thumb_3cccdb0cd5d68963d37a12330e9150b2.jpg
+thumbnails/thumb_3e854cdff47298c8c7c37fae4f07497d.jpg
+thumbnails/thumb_03e7668e66a9114ad341ace179140527.jpg
+thumbnails/thumb_3ee7fafd3ddc3e7c827442d446fabc26.jpg
+thumbnails/thumb_3ef2017492a1774c1fec3152bf949840.jpg
+thumbnails/thumb_3f3b0eec266991fb353501f90e8b45de.jpg
+thumbnails/thumb_4b5da34ae1f826db3e3f8af656b1312e.jpg
+thumbnails/thumb_4b577c1e9a93b161b7057ec147b662bf.jpg
+thumbnails/thumb_4b1003f13711c24ba89d25f6f3061378.jpg
+thumbnails/thumb_4df3a7d50e61eca630cfc1b9146791d8.jpg
+thumbnails/thumb_4f0a613469c391d3329f7f332cc2f8d5.jpg
+thumbnails/thumb_4f95e9ca4fefa9703747a93665b39b40.jpg
+thumbnails/thumb_6af1a7752b984d9039059e1067c1e07a.jpg
+thumbnails/thumb_6dfba47236bf344f2e067f0ae10b5767.jpg
+thumbnails/thumb_6e6e70546c56fe2d82bae4e4224d8942.jpg
+thumbnails/thumb_6f96fa1447b59320715605e5af388d7b.jpg
+thumbnails/thumb_7aca3804439542aed2c91d26a73a3ef0.jpg
+thumbnails/thumb_7ce808ebe61e82c65027a4ed72218e0f.jpg
+thumbnails/thumb_7ec857e82026fba0f834c1d4cdadc9cf.jpg
+thumbnails/thumb_7f52ec8cd860bd0c8ca65636731e4e69.jpg
+thumbnails/thumb_7f82a06272f5bbd0136bd1c17273a0c5.jpg
+thumbnails/thumb_7fd84f67be2ae0fed1e40eccf77ad3aa.jpg
+thumbnails/thumb_8be1a7099015314f46e68de7565c4e5a.jpg
+thumbnails/thumb_8c0d41ab0a98796138953f619eba341f.jpg
+thumbnails/thumb_8d390d8eadb5edc507fac5509826248c.jpg
+thumbnails/thumb_8f9c5f699518b5e520c7c6978653660e.jpg
+thumbnails/thumb_9a777089ef5182185ae76b3ba263882f.jpg
+thumbnails/thumb_9b4e9b99c7850d99989714a410acced3.jpg
+thumbnails/thumb_9cb3bb68babadcb65e0ad1fa627a607a.jpg
+thumbnails/thumb_9e57a6aca56745f2720323c634263b7d.jpg
+thumbnails/thumb_09ff5fb73342fd4ba2962fb7c792cf24.jpg
+thumbnails/thumb_11ee92266f24ed26ae0aec25d98ea9c1.jpg
+thumbnails/thumb_16ce18c5533e4cf90aeda80fbfcd5866.jpg
+thumbnails/thumb_22dc45064a26dfaf61b9945febc5949a.jpg
+thumbnails/thumb_24aebec12215b7e3271b8759c481b8a6.jpg
+thumbnails/thumb_25a571b51f3aa5d5a0c3ac273506ff49.jpg
+thumbnails/thumb_25b47e41b67d4dd1cdea18aa3193dbc5.jpg
+thumbnails/thumb_28c96910d50cb1ba30730c80077b6bfa.jpg
+thumbnails/thumb_29c6ad661de554ff80fa2176fa00988f.jpg
+thumbnails/thumb_029e89f931a77f36f27ac3b0f92381b3.jpg
+thumbnails/thumb_30a5ab00e57a4c8b825c65dc8492c780.jpg
+thumbnails/thumb_35cdf42ce1b6abb15c33f9ff64724710.jpg
+thumbnails/thumb_35eca9aafee5a793ab5d928e0c9a3f08.jpg
+thumbnails/thumb_40dc1f4cef8492d7be7f418f8028390c.jpg
+thumbnails/thumb_40e205d93a65fe6f375b897b42e8cfb2.jpg
+thumbnails/thumb_43b0662bcca3244a92cddf96357a2e5f.jpg
+thumbnails/thumb_44eb011d70b56b9c2fbf46f6c86201fb.jpg
+thumbnails/thumb_45bc96945f80a92044fa0dd769a056a4.jpg
+thumbnails/thumb_47ba76f0691bec34386b08a63bd02e7d.jpg
+thumbnails/thumb_47ee25609e531b269f125860cdffddf7.jpg
+thumbnails/thumb_65a373543ed64f532bc4bcf7802b7f63.jpg
+thumbnails/thumb_070bc9283650fadb8e3798b67638884c.jpg
+thumbnails/thumb_78d150b18192dbd0b58aeab78793f853.jpg
+thumbnails/thumb_83b5102f372ca15d4daf1d589fad8108.jpg
+thumbnails/thumb_85a2f8aacf7252256af56f84972f3821.jpg
+thumbnails/thumb_85f169f96727ecc5542d1930bf23b077.jpg
+thumbnails/thumb_87b07381c90dc39aaf0ce580be828a76.jpg
+thumbnails/thumb_87d1f92726f9be6ba6ee1607d668b84d.jpg
+thumbnails/thumb_94a57e6ed35eef9d55abae3534b6e7a6.jpg
+thumbnails/thumb_95b6de6ca36994c884b031f7fb35fd32.jpg
+thumbnails/thumb_196d0b805bb87a8f429a71ccc0b18e08.jpg
+thumbnails/thumb_213b09a65ae252f87b2c822a5d872bef.jpg
+thumbnails/thumb_315bf33cdbf969600e24556830ba71ae.jpg
+thumbnails/thumb_0403c89e5cd83c73ddf52bfc8584f528.jpg
+thumbnails/thumb_403f809698da9223988ff56300037a44.jpg
+thumbnails/thumb_561c4025a707426a9965b2c7e4d9151b.jpg
+thumbnails/thumb_563c052ce757c1bf1e6f1669a7f628f5.jpg
+thumbnails/thumb_565cad6cc4d5936c62d3a8dcf9ee39b6.jpg
+thumbnails/thumb_601fa6a693abd45af395781265767d2c.jpg
+thumbnails/thumb_0668d6ad9efcb6e3cb65926371f408c9.jpg
+thumbnails/thumb_781bf29bb58eae650feb81c7a3b4376c.jpg
+thumbnails/thumb_807b765109613ac044744d7d8cf9d477.jpg
+thumbnails/thumb_855be9e54617738878e5043370bea23d.jpg
+thumbnails/thumb_977bcd9e20badf9e9fac6abed1d8d7da.jpg
+thumbnails/thumb_01498eb4b4e8deebc7460ebcb1563c22.jpg
+thumbnails/thumb_1555abd35a103769a788559e418fdd69.jpg
+thumbnails/thumb_2372a0dfe19b7db6342a44c890780e0a.jpg
+thumbnails/thumb_2415f63826732358095b3c41cf786a94.jpg
+thumbnails/thumb_2788bdfb20c6edef6093db6d6520ab1b.jpg
+thumbnails/thumb_3157cbbc00e3a9a2cb362d7efe06e26f.jpg
+thumbnails/thumb_3309d12bedb28e13f42788b4ca16754c.jpg
+thumbnails/thumb_3897bfd319cc3766dba169683353014f.jpg
+thumbnails/thumb_3907b3038e55199339ca6b4e0ba38f2f.jpg
+thumbnails/thumb_4158dbf84502373cf2aae592f2f76db3.jpg
+thumbnails/thumb_4884c3f62e87bf09239462fe3874a0f9.jpg
+thumbnails/thumb_6815ea886d35263da9f4e9e534e5bc7d.jpg
+thumbnails/thumb_7492a2cf8e645c70f61f6fd26c7e9b6a.jpg
+thumbnails/thumb_8365d805fb7bb98a37617d25682df072.jpg
+thumbnails/thumb_8881db52110f4e654bcefccaa39f358a.jpg
+thumbnails/thumb_12164f40e0cefe0907082905936d880a.jpg
+thumbnails/thumb_016451ddaeaa364fd687567015345f66.jpg
+thumbnails/thumb_34869ac44eac66b934875d884a0b9da9.jpg
+thumbnails/thumb_42567a64cf5335cc20fe6b95ddd7ebb5.jpg
+thumbnails/thumb_44037ea46ef5f276b0e5c106adcbe4d2.jpg
+thumbnails/thumb_44764c28b802e6436e030fde30399306.jpg
+thumbnails/thumb_049485b17b8659d322ea0337c1d395d5.jpg
+thumbnails/thumb_49546d28596ce52a1c023922b9ddc32b.jpg
+thumbnails/thumb_54710a1c3a7497b84f851f1a813b7e9b.jpg
+thumbnails/thumb_57100f772006824dc5412485961549a5.jpg
+thumbnails/thumb_60034a692dc0ed706d626d35b4f2ab6c.jpg
+thumbnails/thumb_67712c8a42ad9efb039bbb6af13ac888.jpg
+thumbnails/thumb_76428c9dfdf8eb2d30217923c2631182.jpg
+thumbnails/thumb_93625b0a8a31aa0520abba9a70ccb8e9.jpg
+thumbnails/thumb_200029abf5955971eeba4ef0848aaa65.jpg
+thumbnails/thumb_769804ea4742a15e84ad74ac1f826acb.jpg
+thumbnails/thumb_784205d68665c0424b85100c4a01d62a.jpg
+thumbnails/thumb_905638d7852ae4b58f8099db9d8a199c.jpg
+thumbnails/thumb_3444303b883009b3da6fcdb3b33e8cb8.jpg
+thumbnails/thumb_4998513d6fd613359ad91e6c788f6959.jpg
+thumbnails/thumb_36873364c6a0604a4ebf452e0654312c.jpg
+thumbnails/thumb_74966977c7b2081ac5f26bd46fb2272f.jpg
+thumbnails/thumb_86620602ffc9679d7269f7a64892d56b.jpg
+thumbnails/thumb_02904434864a9e3d98d38bb0047bf224.jpg
+thumbnails/thumb_9401416241d97c82d95cbd04fdbc3efa.jpg
+thumbnails/thumb_a3e08f95b2fa70ae9751e176618449b5.jpg
+thumbnails/thumb_a3e715e94608e4e86f7ca6417dca5513.jpg
+thumbnails/thumb_a5d2bf0da126b242436c7839b271fb90.jpg
+thumbnails/thumb_a9d97c494a8a2411cecc260df04873db.jpg
+thumbnails/thumb_a21428be73075fb6544d406fd33495db.jpg
+thumbnails/thumb_aaaa4a5273777bbed68609b9209591b9.jpg
+thumbnails/thumb_aacd8fb3d0d4895459baf3fd29a009d1.jpg
+thumbnails/thumb_acee56b4064212df4b11cae8d9299e85.jpg
+thumbnails/thumb_adaaa2f2ef5194227f36ea7790dbe18d.jpg
+thumbnails/thumb_ae894f45aac36ce0074e2770a08b0d43.jpg
+thumbnails/thumb_aef3c9813fcd612b9cb3d1551485610d.jpg
+thumbnails/thumb_b5abbd0aea5a05c67b4dbea30e8877fb.jpg
+thumbnails/thumb_b130a1dbb1b3b707e717dd3ea59c90fc.jpg
+thumbnails/thumb_b323a84bf4176541f547d81c10b5bbc6.jpg
+thumbnails/thumb_b2827621c844727a2c0c60b7cd12763d.jpg
+thumbnails/thumb_ba11f1c93c90d69469c7578634634952.jpg
+thumbnails/thumb_bac9bc1737eacad4f540c1e491faf78e.jpg
+thumbnails/thumb_bcb56eb9e4245106a99d4c81e25cd2d0.jpg
+thumbnails/thumb_be33a8d09b64f848575596ff0911a56f.jpg
+thumbnails/thumb_c0d9c6f263a345c04bba1d0b4bd6b36d.jpg
+thumbnails/thumb_c1aafabeaa7be50afe7a5d30eb7167f1.jpg
+thumbnails/thumb_c3d7321f858411d02b52c35fc1328083.jpg
+thumbnails/thumb_c5e8bd6ba5c545d9c1aefea908c3df58.jpg
+thumbnails/thumb_c05e312e22beec9c280eadb098741b08.jpg
+thumbnails/thumb_c6f29964f274a88b0d6f6937f41d1fc2.jpg
+thumbnails/thumb_c08a592c9487bbbeb8e33931b216c7ce.jpg
+thumbnails/thumb_c28bca80dbf367240dee13cdd694ac59.jpg
+thumbnails/thumb_c80e343dd467c5e6a96dce0fd917fe5f.jpg
+thumbnails/thumb_c396a52203b277297ca2a7c6466f3f2a.jpg
+thumbnails/thumb_c576f2afb6ada5dbbf9f8bca9780f398.jpg
+thumbnails/thumb_c73930cc6e47f49ea0dd52961bf86c73.jpg
+thumbnails/thumb_c6332822ff651f2d1d917eee313fb917.jpg
+thumbnails/thumb_cdef56a1caae3c3123d5e368e4d3e9b4.jpg
+thumbnails/thumb_d3f93b247f337484d32b662ec36afa0f.jpg
+thumbnails/thumb_d5e7e0ca07a12ce5279a0bafb6634ad8.jpg
+thumbnails/thumb_d8b753ca5f781b43b585d6b2cdf2c328.jpg
+thumbnails/thumb_d8c2acfd829a79fa28f0d5783d5f1947.jpg
+thumbnails/thumb_d16a9ebf3700c665302d15ef438c0bde.jpg
+thumbnails/thumb_d20ec6629fef95c59c5ac3eb28063558.jpg
+thumbnails/thumb_d05818b88cdb86735a86b749af4228f8.jpg
+thumbnails/thumb_d33080c3d00f7638d4ecd0e7d2f09c34.jpg
+thumbnails/thumb_dbe7e7712011c5c29fa0f6e7e54658e4.jpg
+thumbnails/thumb_deac558afd0d2424a193edef955a5f67.jpg
+thumbnails/thumb_df8b1154eb3bdaab9b13667b6b7c9ed6.jpg
+thumbnails/thumb_e3d3cd7b3312a12f9d6242ee475208a1.jpg
+thumbnails/thumb_e4c32c67f0cee4c07fda4e9c2b5f99fb.jpg
+thumbnails/thumb_e5f60d752c03a0b02340bfb13eeb1f1f.jpg
+thumbnails/thumb_e7df0c4c89d6b089db2b4c675157fe6f.jpg
+thumbnails/thumb_e9b57d19cdb801bda00a0361cddc6766.jpg
+thumbnails/thumb_e87c5cf24a69b3717121abd1ad70c210.jpg
+thumbnails/thumb_e414bf898c2f616d610d49c0c2c44324.jpg
+thumbnails/thumb_e676dc8409ca6af5c224fe829c6e2b7a.jpg
+thumbnails/thumb_e31768be02299161881cd1ae7ee31f74.jpg
+thumbnails/thumb_e47375b85011b9eee62a2be08c75e19e.jpg
+thumbnails/thumb_e4418208414a5bf13615205384130b03.jpg
+thumbnails/thumb_ea9b07bc071811c3f852c125edc3c35c.jpg
+thumbnails/thumb_ea32f16717fec57526b268d206e71bc7.jpg
+thumbnails/thumb_ec259b0db6a17de553b7873dc1b034aa.jpg
+thumbnails/thumb_ed504cc1b8d2e60045a4aecf783f109d.jpg
+thumbnails/thumb_edb7f5000f1c0153e40263136e538d95.jpg
+thumbnails/thumb_edffc34f43b22fe7ab6aaa2a4d48c62a.jpg
+thumbnails/thumb_efdb5253a0a71564f0aa60b11ee622d0.jpg
+thumbnails/thumb_f0af9c69e33e0716fa2a322919aadecf.jpg
+thumbnails/thumb_f2ba8fdf753ad385faa7a37871ac65a2.jpg
+thumbnails/thumb_f7a22049aa7da90c0d31036e36339333.jpg
+thumbnails/thumb_f7b3fe69f3de1c3af3e16178d80deae1.jpg
+thumbnails/thumb_f48c73e2aacb5ee20ad3282a711c69c3.jpg
+thumbnails/thumb_f77c64c76e18a4440eb0d29edd7080b5.jpg
+thumbnails/thumb_f239e108d00b85291b9fd11181ebf70e.jpg
+thumbnails/thumb_f386c54efcb6d9ae7d85334664d9d999.jpg
+thumbnails/thumb_f780d8b34a4aeedde516573e83c5678d.jpg
+thumbnails/thumb_f933349a199949279698923c4568fc76.jpg
+thumbnails/thumb_fa883b99c7a6ccbec4a537816bc0d128.jpg
+thumbnails/thumb_faa529ff865175b7f911d05f92b60a9f.jpg
+thumbnails/thumb_fcb97219c5d112f89100d6fdf27801c6.jpg
+thumbnails/thumb_fe8d4ecacae383909813d800d46f0381.jpg
+thumbnails/thumb_ff997de2b17fc188f1b20bee21a5b6ae.jpg
+test_data/audio/Crusty_Progressive Psy Set2.mp3
+test_data/audio/original_master_backup.mp3
+test_data/audio/test_long_60s.wav
+test_data/audio/test_medium_30s.wav
+test_data/audio/test_short_10s.wav
+test_data/audio/Crusty_Progressive Psy Set2.mp3
+test_data/audio/original_master_backup.mp3
+test_data/audio/test_long_60s.wav
+test_data/audio/test_medium_30s.wav
+test_data/audio/test_short_10s.wav
+
+# --- Session & State Files (temporary, not versioned) ---
+.SESSION_*.md
+.context_*.md
+AKTUELLER_STAND.md
+SESSION_STATE_*.md
+
+# --- Test & Debug Outputs ---
+app_*.log
+app_*.txt
+test*.db
+test*.mp4
+test_*.mp4
+temp_*.jpg
+temp_*.png
+nul
+
+# --- Backup Directories ---
+data/backup_*/
+
+# --- Comments & Temporary Notes ---
+comments.json
+
+# --- Model Files (large binary files) ---
+*.pt
+*.pth
+*.onnx
+*.pb
+
+# --- Backup/Fixed Files ---
+*_FIXED.py
+*_BACKUP.py
+*_OLD.py
+
+# --- Screenshots ---
+app_screenshot*.png
+screenshot*.png
+test_*.txt
+
+# Archiv und temporäre Dateien
+.archive/
+audio_cache/
+thumbnails/
+output/
+
+# Test-Reports
+*_TEST*.txt
+*_REPORT*.txt
+*_DEBUG*.txt
+*.coverage
+
+# Logs
+logs/*.log
+!logs/.gitkeep
+node_modules/
+
+# --- Dokumentation & Berichte (Agent-generiert) ---
+*_ANALYSIS_*.md
+*_SUMMARY_*.md
+*_REPORT_*.md
+CHECKPOINT_*.md
+*_GUIDE.md
+*_PLAN.md
+ADAPTIVE_FLOW_INTEGRATION_COMPLETE_*.md
+ANALYZER_STATUS_REPORT_*.md
+BLACK_VIDEO_DEBUG_*.md
+BUG_REPORT_COMPLETE_*.md
+CODE_REVIEW_*.md
+FULL_SYSTEM_ANALYSIS_REPORT_*.md
+GPU_PERFORMANCE_REPORT.md
+PERFORMANCE_*.md
+QA_TESTING_SUMMARY.md
+REFACTORING_SUMMARY.md
+TEST_REPORT_*.md
+TODO_PHASE2_*.md
+AKTUELLER_STAND.md
+BOTTELNECK_*.md
+
+# --- Test ARTEFAKTE ---
+test_gpu_output.txt
+test_results.txt
+test_results_full.txt
+baseline_performance.json
+temp_test_frame.jpg
+App Inhalt und Status.txt
+
+# --- Binäre Modelle (schon oben teilweise drin) ---
+*.onnx
+*.pt
+*.pth
+yolov8n.onnx
+yolov8n.pt
+
+# --- Skripte (Vermeidung von Wildwuchs im Root) ---
+# Erlaube nur explizite Start/Installationsskripte
+*.ps1
+!Start-PBStudio.ps1
+!install_pb_studio.ps1
+!show_window.ps1
+!take_screenshot.ps1
+
+*.bat
+!Start_PB_Studio.bat
+!UNINSTALL_PB_STUDIO.bat
+!clear_database.bat
