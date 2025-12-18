@@ -1,0 +1,1 @@
+     run pip install opencv-python scipy numba imagehash BeatNet requests demucs accelerate

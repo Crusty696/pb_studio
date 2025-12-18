@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtWidgets import QFileDialog, QMessageBox
+from PyQt6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 if TYPE_CHECKING:
     from ..main_window import MainWindow
@@ -173,8 +173,6 @@ class RenderController:
         self.main_window.render_worker = RenderWorker(
             main_window=self.main_window,
             audio_path=str(self.main_window.timeline_widget.audio_path),
-            output_path=output_path,
-            duration=duration,
             output_path=output_path,
             duration=duration,
             parent=self.main_window,

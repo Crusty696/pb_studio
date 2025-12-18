@@ -980,7 +980,7 @@ class AdvancedPacingEngine:
                 if self.energy_curve:
                     try:
                         audio_energy = self.energy_curve.get_energy_at_time(cut.time)
-                    except:
+                    except (AttributeError, IndexError, ValueError):
                         pass
                 task = ClipSelectionTask(cut_idx, audio_energy, audio_energy, cut.time, cut.time)
                 tasks.append(task)
@@ -1071,7 +1071,7 @@ class AdvancedPacingEngine:
             if self.energy_curve:
                 try:
                     audio_energy = self.energy_curve.get_energy_at_time(cut.time)
-                except:
+                except (AttributeError, IndexError, ValueError):
                     audio_energy = cut.strength
             else:
                 audio_energy = cut.strength

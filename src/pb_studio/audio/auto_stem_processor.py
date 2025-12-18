@@ -82,14 +82,14 @@ class AutoStemProcessor:
             import torch
 
             has_cuda = torch.cuda.is_available()
-        except:
+        except ImportError:
             has_cuda = False
 
         try:
             import torch_directml
 
             has_directml = True
-        except:
+        except ImportError:
             has_directml = False
 
         # Intelligente Model-Auswahl

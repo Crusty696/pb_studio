@@ -127,7 +127,6 @@ class RenderWorker(QThread):
         audio_path: str,
         output_path: str,
         duration: float | None = None,
-        duration: float | None = None,
         parent=None,
         render_settings=None,
     ):
@@ -138,7 +137,6 @@ class RenderWorker(QThread):
             main_window: Reference to MainWindow instance
             audio_path: Path to audio file
             output_path: Path for output video
-            duration: Optional duration limit
             duration: Optional duration limit
             parent: Parent QObject
             render_settings: Render settings from dialog
