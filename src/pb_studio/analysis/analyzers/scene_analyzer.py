@@ -8,6 +8,7 @@ Analysiert:
 - Tiefenschaerfe-Schaetzung
 """
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -87,8 +88,24 @@ class SceneAnalyzer:
         if not self._face_net_loaded:
             try:
                 # Modell-Pfade (im OpenCV DNN-Modul enthalten oder separat herunterladbar)
-                model_dir = Path(__file__).parent / "models"
-                model_dir.mkdir(exist_ok=True)
+                # ROBUST FIX: Use configurable path or default 'data/models' relative to project root
+
+                # Check for env var override
+                env_model_dir = os.environ.get("PB_MODEL_DIR")
+                if env_model_dir:
+                    model_dir = Path(env_model_dir) / "face_detection"
+                else:
+                    # Default: data/models relative to project root (4 levels up from this file)
+                    # src/pb_studio/analysis/analyzers/ -> ../../../../data/models
+                    project_root = Path(__file__).parent.parent.parent.parent.parent
+                    model_dir = project_root / "data" / "models" / "face_detection"
+
+                # Create if not exists (so user knows where to put models)
+                if not model_dir.exists():
+                     try:
+                         model_dir.mkdir(parents=True, exist_ok=True)
+                     except Exception:
+                         pass
 
                 prototxt_path = model_dir / "deploy.prototxt"
                 model_path = model_dir / "res10_300x300_ssd_iter_140000.caffemodel"
@@ -99,9 +116,7 @@ class SceneAnalyzer:
                 else:
                     logger.info(
                         "DNN Face Detector Modelle nicht gefunden. "
-                        f"Erwartete Pfade:\n"
-                        f"  {prototxt_path}\n"
-                        f"  {model_path}\n"
+                        f"Suche in: {model_dir}\n"
                         "Fallback auf Haar Cascade."
                     )
 
