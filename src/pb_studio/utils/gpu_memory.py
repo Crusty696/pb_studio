@@ -28,10 +28,12 @@ import platform
 from contextlib import contextmanager
 from typing import Any
 
+from pb_studio.core.config import get_config
+
 # Konfigurierbare GPU Memory Reserve (Standard: 20%)
 # Kann überschrieben werden durch:
 # - Environment Variable: PB_GPU_MEMORY_RESERVE (z.B. 0.15 für 15%)
-# - TODO: Integration mit zentralem Config-Manager
+# - Config Manager (Hardware -> gpu_memory_reserve)
 DEFAULT_GPU_MEMORY_RESERVE = 0.2  # 20% Reserve
 
 # Empfohlene Werte:
@@ -67,7 +69,7 @@ def get_memory_reserve() -> float:
 
     Priorität:
     1. Environment Variable: PB_GPU_MEMORY_RESERVE (0.05 - 0.5)
-    2. TODO: Config-Datei (zentraler Config-Manager)
+    2. Config-Datei (zentraler Config-Manager)
     3. DEFAULT_GPU_MEMORY_RESERVE (0.2 = 20%)
 
     Returns:
@@ -82,28 +84,48 @@ def get_memory_reserve() -> float:
         reserve = get_memory_reserve()
         # Returns: 0.15
     """
-    # Environment Variable hat Priorität
+    # 1. Environment Variable hat höchste Priorität
     env_reserve = os.environ.get("PB_GPU_MEMORY_RESERVE")
+    reserve = None
+    source = "Default"
+
     if env_reserve:
         try:
             reserve = float(env_reserve)
-            # Clamp zwischen 5% und 50%
-            clamped = max(0.05, min(0.5, reserve))
-            if clamped != reserve:
-                logger.warning(
-                    f"GPU Memory Reserve {reserve:.2%} außerhalb erlaubtem Bereich "
-                    f"(5%-50%), geclampt auf {clamped:.2%}"
-                )
-            logger.debug(f"GPU Memory Reserve aus Environment: {clamped:.2%}")
-            return clamped
+            source = "Environment"
         except ValueError:
             logger.warning(
-                f"Ungültiger Wert für PB_GPU_MEMORY_RESERVE: '{env_reserve}', "
-                f"verwende Standard ({DEFAULT_GPU_MEMORY_RESERVE:.2%})"
+                f"Ungültiger Wert für PB_GPU_MEMORY_RESERVE: '{env_reserve}'"
             )
 
-    # Fallback: Default-Wert
-    return DEFAULT_GPU_MEMORY_RESERVE
+    # 2. Config Manager
+    if reserve is None:
+        try:
+            config = get_config()
+            config_reserve = config.get_float("Hardware", "gpu_memory_reserve")
+            if config_reserve is not None:
+                reserve = config_reserve
+                source = "Config"
+        except Exception as e:
+            logger.debug(f"Konnte Config nicht laden: {e}")
+
+    # 3. Fallback Default
+    if reserve is None:
+        reserve = DEFAULT_GPU_MEMORY_RESERVE
+        source = "Default"
+
+    # Clamp zwischen 5% und 50%
+    clamped = max(0.05, min(0.5, reserve))
+
+    if clamped != reserve:
+        logger.warning(
+            f"GPU Memory Reserve {reserve:.2%} ({source}) außerhalb erlaubtem Bereich "
+            f"(5%-50%), geclampt auf {clamped:.2%}"
+        )
+    else:
+        logger.debug(f"GPU Memory Reserve ({source}): {clamped:.2%}")
+
+    return clamped
 
 
 @contextmanager
