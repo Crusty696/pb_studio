@@ -212,56 +212,8 @@ class VideoPreprocessor:
                 sample_indices = [int(i * frame_step) for i in range(max_frames)]
 
             elif self.config.sample_strategy == "keyframes":
-                # Keyframe detection using VideoAnalyzer (PySceneDetect)
-                try:
-                    # Initialize analyzer (use cache for performance if available)
-                    # Use lower threshold (15.0) to be more sensitive for keyframe detection
-                    analyzer = VideoAnalyzer(use_cache=True)
-                    scene_timestamps = analyzer.get_scene_timestamps(video_path, threshold=15.0)
-
-                    if scene_timestamps and len(scene_timestamps) > 0:
-                        detected_indices = []
-                        fps = video_properties.fps
-
-                        # Process timestamps in pairs [start, end, start, end...]
-                        for i in range(0, len(scene_timestamps), 2):
-                            if i + 1 >= len(scene_timestamps):
-                                break
-
-                            start_sec = scene_timestamps[i]
-                            end_sec = scene_timestamps[i+1]
-
-                            # Select middle frame of the scene as keyframe
-                            mid_sec = (start_sec + end_sec) / 2
-                            mid_frame = int(mid_sec * fps)
-
-                            # Ensure frame index is valid
-                            if 0 <= mid_frame < total_frames:
-                                detected_indices.append(mid_frame)
-
-                        # Handle sampling if we found scenes
-                        if detected_indices:
-                            # If more scenes than max_frames, sample uniformly from scenes
-                            if len(detected_indices) > max_frames:
-                                step = len(detected_indices) / max_frames
-                                sample_indices = [detected_indices[int(i * step)] for i in range(max_frames)]
-                            else:
-                                # Use all detected scenes
-                                sample_indices = detected_indices
-
-                            # Ensure sorted and unique
-                            sample_indices = sorted(list(set(sample_indices)))
-                        else:
-                            # Fallback if timestamps yielded no valid frames
-                            logger.warning(f"No valid frames extracted from {len(scene_timestamps)//2} scenes, falling back to uniform")
-                            sample_indices = list(range(0, total_frames, max(1, total_frames // max_frames)))
-                    else:
-                        logger.info("No scenes detected, falling back to uniform sampling")
-                        sample_indices = list(range(0, total_frames, max(1, total_frames // max_frames)))
-
-                except Exception as e:
-                    logger.warning(f"Keyframe detection failed, falling back to uniform: {e}")
-                    sample_indices = list(range(0, total_frames, max(1, total_frames // max_frames)))
+                # TODO: Implement keyframe detection
+                sample_indices = list(range(0, total_frames, max(1, total_frames // max_frames)))
 
             else:  # smart sampling
                 sample_indices = self._smart_frame_sampling(video_properties, max_frames)

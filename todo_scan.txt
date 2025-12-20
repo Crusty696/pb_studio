@@ -1,8 +1,0 @@
-src/pb_studio/utils/gpu_memory.py:# - TODO: Integration mit zentralem Config-Manager
-src/pb_studio/utils/gpu_memory.py:    2. TODO: Config-Datei (zentraler Config-Manager)
-src/pb_studio/video/video_compatibility_manager.py:                # TODO: Implement keyframe detection
-src/pb_studio/pacing/structure_analyzer.py:        # (Erkennung würde Energy-Gradient erfordern - TODO)
-src/pb_studio/pacing/ai_enhanced_pacing_engine.py:            # TODO: Implement actual scene transition detection
-src/pb_studio/pacing/ai_enhanced_pacing_engine.py:            # TODO: Implement sophisticated quality analysis
-src/pb_studio/pacing/ai_enhanced_pacing_engine.py:            # TODO: Implement sophisticated energy correlation analysis
-src/pb_studio/pacing/ai_enhanced_pacing_engine.py:            # TODO: Configure base engine with AI recommendations

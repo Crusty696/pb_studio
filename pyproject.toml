@@ -33,14 +33,7 @@ qdrant-client = {version = "^1.11.0", optional = true}  # GPU alternative (faste
 # Video Processing
 ffmpeg-python = "^0.2.0"
 scenedetect = {extras = ["opencv"], version = "^0.6.3"}
-opencv-python = "^4.8.0"
 Pillow = "^10.0.0"
-
-# Audio Analysis - Advanced
-BeatNet = {version = "^1.1.3", optional = true}
-
-# Networking
-requests = "^2.31.0"
 
 # AI/ML (PyTorch wird separat installiert basierend auf Hardware)
 torch = {version = ">=2.4.1,<2.5.0", optional = true}
@@ -94,9 +87,6 @@ vector-all = ["faiss-cpu", "qdrant-client"]  # All options (auto-detection)
 
 # Hardware-spezifische Dependencies werden vom Installer hinzugefÃ¼gt
 cuda = ["torch", "demucs"]
-
-# Audio Analysis Extras
-audio-advanced = ["BeatNet"]
 
 # KI-Video-Analyse (X-CLIP 512D Embeddings)
 ai-video = ["torch", "av", "accelerate", "onnxruntime-gpu"]  # VollstÃ¤ndig mit GPU (CUDA/DirectML)

@@ -22,7 +22,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scenedetect import ContentDetector, SceneManager, open_video
 
 from ..analysis.analyzers.multi_modal_analyzer import (
     MultiModalAnalyzer,
@@ -113,6 +112,11 @@ class AIEnhancedPacingConfig:
     min_quality_score: float = 0.5  # Minimum quality for cut selection
     prefer_high_quality_zones: bool = True
 
+    # Multi-Modal Scoring Weights & Normalization
+    audio_energy_normalization_factor: float = 5.0
+    video_quality_weight: float = 0.7
+    audio_energy_weight: float = 0.3
+
 
 class AIEnhancedPacingEngine:
     """
@@ -202,7 +206,7 @@ class AIEnhancedPacingEngine:
 
             # 2. Scene-Aware Analysis
             dominant_scenes, scene_transitions, mood_consistency = self._analyze_scenes(
-                video_features, video_path
+                video_features
             )
 
             # 3. AI Cut Point Generation
@@ -326,70 +330,22 @@ class AIEnhancedPacingEngine:
 
         return final_cuts
 
-    def _analyze_scenes(
-        self, video_features: dict[str, Any], video_path: str
-    ) -> tuple[list[str], list[float], str]:
-        """
-        Analyze video scenes for pacing decisions using PySceneDetect.
-
-        Args:
-            video_features: Extracted video features (tags etc)
-            video_path: Path to video file
-
-        Returns:
-            Tuple of (dominant_scenes, scene_transitions, mood_consistency)
-        """
+    def _analyze_scenes(self, video_features: dict[str, Any]) -> tuple[list[str], list[float], str]:
+        """Analyze video scenes for pacing decisions."""
         try:
             # Extract dominant scenes
             tags = video_features.get("tags", ["unknown"])
             dominant_scenes = tags[:3] if isinstance(tags, list) else ["unknown"]
 
-            # Initialize scene transitions list
+            # TODO: Implement actual scene transition detection
+            # For now, use placeholder logic
             scene_transitions = []
+            mood_consistency = "consistent"
 
-            # Determine threshold based on sensitivity (inverse relationship)
-            # Default ContentDetector threshold is 30.0
-            # sensitivity 1.0 (high) -> threshold 10.0 (detects small changes)
-            # sensitivity 0.0 (low) -> threshold 70.0 (detects only big changes)
-            threshold = 60.0 * (1.0 - self.config.scene_change_sensitivity) + 10.0
-
-            try:
-                # Setup scene detection
-                video = open_video(video_path)
-                scene_manager = SceneManager()
-                scene_manager.add_detector(ContentDetector(threshold=threshold))
-
-                # Detect scenes
-                scene_manager.detect_scenes(video=video)
-                scene_list = scene_manager.get_scene_list()
-
-                # Extract cut points (end of previous scene is start of next)
-                # We skip the first scene start (0.0) if it's the beginning
-                for i, (start, end) in enumerate(scene_list):
-                    start_sec = start.get_seconds()
-                    if start_sec > 0.1:  # Filter out 0.0
-                        scene_transitions.append(start_sec)
-
-                logger.info(
-                    f"Detected {len(scene_transitions)} scene transitions "
-                    f"(threshold={threshold:.1f})"
-                )
-
-            except Exception as e:
-                logger.warning(f"Actual scene detection failed, falling back to basic analysis: {e}")
-                # Fallback to placeholder or keep empty
-
-            # Determine mood consistency based on scene variety and cut frequency
-            # Calculate cuts per minute
-            cuts_per_minute = 0
-            if scene_transitions:
-                duration = scene_transitions[-1] if scene_transitions else 1.0
-                if duration > 0:
-                    cuts_per_minute = len(scene_transitions) / (duration / 60.0)
-
-            if len(set(dominant_scenes)) == 1 and cuts_per_minute < 5:
+            # Determine mood consistency based on scene variety
+            if len(set(dominant_scenes)) == 1:
                 mood_consistency = "consistent"
-            elif len(set(dominant_scenes)) <= 2 and cuts_per_minute < 15:
+            elif len(set(dominant_scenes)) <= 2:
                 mood_consistency = "dynamic"
             else:
                 mood_consistency = "chaotic"
@@ -475,8 +431,11 @@ class AIEnhancedPacingEngine:
 
                     # Boost score if high energy matches high video quality
                     # Energy is typically non-normalized RMS, so we normalize vaguely
-                    norm_energy = min(audio_energy * 5.0, 1.0) # Heuristic normalization
-                    combined_score = (video_score * 0.7) + (norm_energy * 0.3)
+                    norm_energy = min(audio_energy * self.config.audio_energy_normalization_factor, 1.0)
+                    combined_score = (
+                        (video_score * self.config.video_quality_weight) +
+                        (norm_energy * self.config.audio_energy_weight)
+                    )
 
                 # Check if this frame qualifies as high quality
                 if combined_score >= self.config.min_quality_score:
@@ -534,58 +493,11 @@ class AIEnhancedPacingEngine:
     def _calculate_energy_correlation(
         self, audio_features: dict[str, Any], video_features: dict[str, Any]
     ) -> float:
-        """
-        Calculate sophisticated audio-video energy correlation.
-
-        Uses temporal energy data from audio (RMS) and video (Motion) if available.
-        Falls back to scalar correlation if detailed data is missing.
-        """
+        """Calculate audio-video energy correlation."""
         try:
-            # 1. Try to get detailed temporal data
-            spectral_features = audio_features.get("spectral_features")
-            motion_series = video_features.get("motion_series")
-            motion_times = video_features.get("motion_times")
+            # Simple correlation calculation
+            # TODO: Implement sophisticated energy correlation analysis
 
-            if spectral_features and motion_series and motion_times:
-                # Get audio energy and times
-                audio_energy = spectral_features.get("rms_energy")
-                audio_times = spectral_features.get("frame_times")
-
-                if audio_energy and audio_times:
-                    # Convert to numpy arrays for easier handling
-                    audio_energy = np.array(audio_energy)
-                    audio_times = np.array(audio_times)
-                    motion_series = np.array(motion_series)
-                    motion_times = np.array(motion_times)
-
-                    # Normalize both series to 0-1 range
-                    if np.max(audio_energy) > 0:
-                        audio_energy = audio_energy / np.max(audio_energy)
-                    if np.max(motion_series) > 0:
-                        motion_series = motion_series / np.max(motion_series)
-
-                    # Resample audio energy to match motion times
-                    # We interpolate audio energy at the timestamps where we have motion data
-                    resampled_audio_energy = np.interp(motion_times, audio_times, audio_energy)
-
-                    # Calculate Pearson correlation coefficient
-                    if len(resampled_audio_energy) > 1 and len(motion_series) > 1:
-                        correlation = np.corrcoef(resampled_audio_energy, motion_series)[0, 1]
-
-                        # Handle NaN (e.g., constant input)
-                        if np.isnan(correlation):
-                            correlation = 0.0
-
-                        # Map correlation (-1 to 1) to a useful score (0 to 1)
-                        # We value positive correlation primarily.
-                        # Negative correlation means low energy when video has high motion (or vice versa), which is mismatch.
-                        # So we can just clamp negative values to 0.
-                        normalized_correlation = max(0.0, correlation)
-
-                        logger.debug(f"Calculated temporal energy correlation: {normalized_correlation:.3f}")
-                        return float(normalized_correlation)
-
-            # 2. Fallback: Simple correlation calculation
             bpm = audio_features.get("bpm", 120)
             video_confidence = video_features.get("confidence", 0.5)
 
@@ -628,26 +540,26 @@ class AIEnhancedPacingEngine:
         try:
             # Configure base engine based on AI recommendations
             pacing_mode = self._map_strategy_to_mode(ai_analysis.recommended_strategy)
-            self.base_engine.pacing_mode = pacing_mode
 
-            # Extract audio features
-            bpm = ai_analysis.audio_features.get("bpm")
+            # TODO: Configure base engine with AI recommendations
+            # For now, return placeholder cuts
 
-            # Determine min_cut_interval based on strategy
-            min_cut_interval = 2.0  # Default
-            if pacing_mode == PacingMode.FAST:
-                min_cut_interval = 0.5
-            elif pacing_mode == PacingMode.SLOW:
-                min_cut_interval = 4.0
-            elif pacing_mode == PacingMode.DYNAMIC:
-                min_cut_interval = 1.0
+            cuts = []
+            cut_interval = 3.0  # 3 second intervals
 
-            # Generate cuts using base engine
-            cuts = self.base_engine.generate_cut_list(
-                audio_path=audio_path, expected_bpm=bpm, min_cut_interval=min_cut_interval
-            )
+            for i, timestamp in enumerate(np.arange(0, total_duration, cut_interval)):
+                if timestamp >= total_duration:
+                    break
 
-            return cuts
+                cut = PacingCut(
+                    timestamp=timestamp,
+                    intensity=0.5 + (i % 3) * 0.2,  # Varying intensity
+                    trigger_type="ai_generated",
+                    confidence=ai_analysis.pacing_confidence,
+                )
+                cuts.append(cut)
+
+            return cuts[:50]  # Limit cuts
 
         except Exception as e:
             logger.error(f"Base cut generation failed: {e}")

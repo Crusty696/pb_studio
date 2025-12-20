@@ -17,10 +17,6 @@ class PacingMode(Enum):
 
     BEAT_SYNC = "BEAT_SYNC"  # Fixed-length cuts (0.6s), maximal beat synchronization
     ADAPTIVE_FLOW = "ADAPTIVE_FLOW"  # Variable-length clips (4-10s), emotion-based flow
-    FAST = "FAST"
-    MEDIUM = "MEDIUM"
-    SLOW = "SLOW"
-    DYNAMIC = "DYNAMIC"
 
 
 class MotionType(Enum):

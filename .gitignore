@@ -406,7 +406,3 @@ yolov8n.pt
 !Start_PB_Studio.bat
 !UNINSTALL_PB_STUDIO.bat
 !clear_database.bat
-data/*.db
-data/*.db-shm
-data/*.db-wal
-trigger_cache/

@@ -1,6 +1,5 @@
 import hashlib
 import io
-import threading
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import List, Optional, Tuple, Union
@@ -119,7 +118,6 @@ class SemanticAnalyzer:
         self._text_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._cache_capacity = 1000
         self._cache_stats = {"image_hits": 0, "image_misses": 0, "text_hits": 0, "text_misses": 0}
-        self._cache_lock = threading.Lock()
         self._model = None
         self._processor = None
 
@@ -386,7 +384,6 @@ class SemanticAnalyzer:
 
     def _evict_lru(self, cache: OrderedDict):
         """Entfernt aelteste Eintraege wenn Cache-Groesse ueberschritten wird."""
-        # Note: Must be called within lock
         while len(cache) > self._cache_capacity:
             cache.popitem(last=False)
 
@@ -411,30 +408,22 @@ class SemanticAnalyzer:
         return hashlib.md5(text.encode("utf-8")).hexdigest()
 
     def _get_cached_image_embedding(self, key: str) -> list[float] | None:
-        with self._cache_lock:
-            if key in self._image_cache:
-                self._cache_stats["image_hits"] += 1
-                self._image_cache.move_to_end(key)
-                return self._image_cache[key]
-            self._cache_stats["image_misses"] += 1
+        if key in self._image_cache:
+            self._cache_stats["image_hits"] += 1
+            self._image_cache.move_to_end(key)
+            return self._image_cache[key]
+        self._cache_stats["image_misses"] += 1
         return None
 
     def _set_cached_image_embedding(self, key: str, embedding: list[float]) -> None:
-        with self._cache_lock:
-            self._image_cache[key] = embedding
-            self._evict_lru(self._image_cache)
+        self._image_cache[key] = embedding
+        self._evict_lru(self._image_cache)
 
     def clear_cache(self) -> None:
         """Leert alle Embedding-Caches und Statistiken."""
-        with self._cache_lock:
-            self._image_cache.clear()
-            self._text_cache.clear()
-            self._cache_stats = {
-                "image_hits": 0,
-                "image_misses": 0,
-                "text_hits": 0,
-                "text_misses": 0,
-            }
+        self._image_cache.clear()
+        self._text_cache.clear()
+        self._cache_stats = {"image_hits": 0, "image_misses": 0, "text_hits": 0, "text_misses": 0}
 
     def get_cache_stats(self) -> dict[str, int | float]:
         """
@@ -447,26 +436,23 @@ class SemanticAnalyzer:
             - cache_sizes
             - capacity
         """
-        with self._cache_lock:
-            image_total = self._cache_stats["image_hits"] + self._cache_stats["image_misses"]
-            text_total = self._cache_stats["text_hits"] + self._cache_stats["text_misses"]
+        image_total = self._cache_stats["image_hits"] + self._cache_stats["image_misses"]
+        text_total = self._cache_stats["text_hits"] + self._cache_stats["text_misses"]
 
-            image_hit_rate = (
-                self._cache_stats["image_hits"] / image_total if image_total > 0 else 0.0
-            )
-            text_hit_rate = self._cache_stats["text_hits"] / text_total if text_total > 0 else 0.0
+        image_hit_rate = self._cache_stats["image_hits"] / image_total if image_total > 0 else 0.0
+        text_hit_rate = self._cache_stats["text_hits"] / text_total if text_total > 0 else 0.0
 
-            return {
-                "image_hits": self._cache_stats["image_hits"],
-                "image_misses": self._cache_stats["image_misses"],
-                "image_hit_rate": image_hit_rate,
-                "text_hits": self._cache_stats["text_hits"],
-                "text_misses": self._cache_stats["text_misses"],
-                "text_hit_rate": text_hit_rate,
-                "image_cache_size": len(self._image_cache),
-                "text_cache_size": len(self._text_cache),
-                "capacity": self._cache_capacity,
-            }
+        return {
+            "image_hits": self._cache_stats["image_hits"],
+            "image_misses": self._cache_stats["image_misses"],
+            "image_hit_rate": image_hit_rate,
+            "text_hits": self._cache_stats["text_hits"],
+            "text_misses": self._cache_stats["text_misses"],
+            "text_hit_rate": text_hit_rate,
+            "image_cache_size": len(self._image_cache),
+            "text_cache_size": len(self._text_cache),
+            "capacity": self._cache_capacity,
+        }
 
     def cache_stats(self) -> dict[str, int]:
         """

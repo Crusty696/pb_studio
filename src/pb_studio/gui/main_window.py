@@ -454,17 +454,11 @@ class MainWindow(QMainWindow):
         # Play button
         self.play_button = QPushButton("▶ Play")
         self.play_button.setMinimumWidth(100)
-        self.play_button.setToolTip("Start/Pause playback (Space)")
-        self.play_button.setAccessibleName("Play Button")
-        self.play_button.setAccessibleDescription("Starts or pauses video playback")
         self.play_button.clicked.connect(self.toggle_playback)
 
         # Stop button
         self.stop_button = QPushButton("⏹ Stop")
         self.stop_button.setMinimumWidth(100)
-        self.stop_button.setToolTip("Stop playback")
-        self.stop_button.setAccessibleName("Stop Button")
-        self.stop_button.setAccessibleDescription("Stops video playback and resets position")
         self.stop_button.clicked.connect(self.stop_playback)
         self.stop_button.setEnabled(False)
 
@@ -788,15 +782,6 @@ class MainWindow(QMainWindow):
             "Keyboard-Shortcuts anzeigen",
             "Help",
             self.shortcut_manager.show_help,
-        )
-
-        # Playback
-        self.shortcut_manager.register_shortcut(
-            "toggle_playback",
-            "Space",
-            "Start/Pause playback",
-            "Playback",
-            self.toggle_playback,
         )
 
         # Verbinde Menu-Action mit ShortcutManager (wurde in _create_menu_bar() erstellt)
@@ -1140,13 +1125,14 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"PB_studio - {project.name}")
         self.update_status(f"Projekt '{project.name}' geladen")
 
-        # Load Audio-Tracks from Database
-        from ..database.crud import get_audio_tracks_by_project
+        # Load Audio-Tracks and Video-Clips from Database
+        from ..database.crud import get_audio_tracks_by_project, get_video_clips_by_project
 
         audio_tracks = get_audio_tracks_by_project(project.id)
+        video_clips = get_video_clips_by_project(project.id)
 
         logger.info(
-            f"Loaded {len(audio_tracks)} audio tracks from database"
+            f"Loaded {len(audio_tracks)} audio tracks and {len(video_clips)} video clips from database"
         )
 
         # Load first audio track into timeline if available
@@ -1159,10 +1145,10 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.error(f"Failed to load audio track: {e}")
 
-        # Set project ID in ClipLibrary and load clips
-        if self.clip_library_widget:
-            self.clip_library_widget.set_project_id(project.id)
-            logger.info(f"Set project ID {project.id} in ClipLibrary")
+        # Refresh video clips in ClipLibrary (loads from DB automatically)
+        if video_clips and self.clip_library_widget:
+            self.clip_library_widget.refresh_clips()
+            logger.info(f"Refreshed {len(video_clips)} clips in ClipLibrary")
 
         logger.info(f"Projekt geladen: {project.name} (ID: {project.id})")
 

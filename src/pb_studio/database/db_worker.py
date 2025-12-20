@@ -7,12 +7,12 @@ um UI non-blocking zu halten.
 Author: PB_studio Development Team
 """
 
+import json
 from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from sqlalchemy.orm import Session, joinedload
 
-from ..utils.clip_data_loader import ClipDataLoader
 from ..utils.logger import get_logger
 from .models import VideoClip
 from .models_analysis import (
@@ -139,19 +139,123 @@ class DatabaseWorker(QObject):
             total = len(db_clips)
             unanalyzed_count = 0
 
-            # PERF-OPTIMIZATION: Use ClipDataLoader for lazy loading of heavy JSON fields
             for i, clip_db in enumerate(db_clips):
                 if self._cancelled:
                     logger.info("DatabaseWorker: Query cancelled by user")
                     return
 
-                # Transform to dict using lightweight loader
-                # full_details=False prevents parsing of large JSON fields used only in details view
-                clip_data = ClipDataLoader.db_to_dict(clip_db, full_details=False)
+                # Build analysis data dict (direkt aus Relationships)
+                analysis_data = {}
+                is_analyzed = False
 
-                # Track unanalyzed count
-                if clip_data.get("_unanalyzed_count", 0) > 0:
+                # Check analysis status
+                if clip_db.analysis_status:
+                    is_analyzed = (
+                        clip_db.analysis_status.is_fully_analyzed()
+                        if hasattr(clip_db.analysis_status, "is_fully_analyzed")
+                        else False
+                    )
+
+                # Load color analysis
+                if clip_db.colors:
+                    analysis_data["color"] = {
+                        "temperature": clip_db.colors.temperature,
+                        "temperature_score": clip_db.colors.temperature_score,
+                        "brightness": clip_db.colors.brightness,
+                        "brightness_value": clip_db.colors.brightness_value,
+                        "dominant_colors": clip_db.colors.get_dominant_colors(),
+                        "color_moods": clip_db.colors.get_color_moods(),
+                    }
+
+                # Load motion analysis
+                if clip_db.motion:
+                    analysis_data["motion"] = {
+                        "motion_type": clip_db.motion.motion_type,
+                        "motion_score": clip_db.motion.motion_score,
+                        "motion_rhythm": clip_db.motion.motion_rhythm,
+                        "camera_motion": clip_db.motion.camera_motion,
+                        "camera_magnitude": clip_db.motion.camera_magnitude,
+                    }
+
+                # Load scene analysis
+                if clip_db.scene_type:
+                    analysis_data["scene"] = {
+                        "scene_types": clip_db.scene_type.get_scene_types(),
+                        "has_face": clip_db.scene_type.has_face,
+                        "face_count": clip_db.scene_type.face_count,
+                        "edge_density": clip_db.scene_type.edge_density,
+                        "depth_of_field": clip_db.scene_type.depth_of_field,
+                    }
+
+                # Load mood analysis
+                if clip_db.mood:
+                    # Defensive JSON-Parsing fuer mood_scores
+                    mood_scores = {}
+                    if clip_db.mood.mood_scores:
+                        try:
+                            mood_scores = json.loads(clip_db.mood.mood_scores)
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"Clip {clip_db.id}: Invalid mood_scores JSON")
+
+                    analysis_data["mood"] = {
+                        "moods": clip_db.mood.get_moods(),
+                        "mood_scores": mood_scores,
+                        "brightness": clip_db.mood.brightness,
+                        "saturation": clip_db.mood.saturation,
+                        "energy": clip_db.mood.energy,
+                    }
+
+                # Load style analysis
+                if clip_db.style:
+                    analysis_data["style"] = {
+                        "styles": clip_db.style.get_styles(),
+                        "sharpness": clip_db.style.sharpness,
+                        "noise_level": clip_db.style.noise_level,
+                        "vignette_score": clip_db.style.vignette_score,
+                    }
+
+                # Load object detection
+                if clip_db.objects:
+                    # Defensive JSON-Parsing fuer object_counts
+                    object_counts = {}
+                    if clip_db.objects.object_counts:
+                        try:
+                            object_counts = json.loads(clip_db.objects.object_counts)
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"Clip {clip_db.id}: Invalid object_counts JSON")
+
+                    analysis_data["objects"] = {
+                        "detected_objects": clip_db.objects.get_detected_objects(),
+                        "object_counts": object_counts,
+                        "content_tags": clip_db.objects.get_content_tags(),
+                    }
+
+                # FIX: Konsistente Logik für is_analyzed und needs_analysis
+                # Ein Clip gilt als analysiert wenn:
+                # 1. analysis_status.is_fully_analyzed() == True UND
+                # 2. Es tatsächlich analysis_data gibt
+                is_analyzed_final = is_analyzed and bool(analysis_data)
+
+                # needs_analysis ist das exakte Gegenteil
+                if not is_analyzed_final:
                     unanalyzed_count += 1
+
+                # Build clip data dict
+                clip_data = {
+                    "id": clip_db.id,
+                    "name": clip_db.name,
+                    "file_path": clip_db.file_path,
+                    "duration": clip_db.duration or 0.0,
+                    "width": clip_db.width or 0,
+                    "height": clip_db.height or 0,
+                    "fps": clip_db.fps or 30.0,
+                    "date_added": str(clip_db.created_at) if clip_db.created_at else "",
+                    "thumbnail_path": clip_db.thumbnail_path,
+                    "analysis": analysis_data,
+                    "is_analyzed": is_analyzed_final,
+                    "content_fingerprint": getattr(clip_db, "content_fingerprint", None),
+                    "_unanalyzed_count": unanalyzed_count,  # Metadata for UI
+                }
 
                 clips_data.append(clip_data)
 
@@ -202,11 +306,6 @@ class DatabaseWorker(QObject):
         """
         if not filters:
             return query
-
-        # Filter: project_id (direct on VideoClip)
-        if "project_id" in filters and filters["project_id"] is not None:
-            query = query.filter(VideoClip.project_id == filters["project_id"])
-            logger.debug(f"Filter applied: project_id = {filters['project_id']}")
 
         # Filter: motion_type (requires JOIN to ClipMotion)
         if "motion_type" in filters and filters["motion_type"]:

@@ -21,8 +21,6 @@ from typing import Any
 
 import numpy as np
 
-from ..utils.path_utils import validate_file_path
-
 logger = logging.getLogger(__name__)
 
 # Konstanten
@@ -184,13 +182,6 @@ class AIVideoAnalyzer:
             return None
 
         try:
-            # SECURITY: Validate file path before processing
-            try:
-                validate_file_path(video_path, must_exist=True)
-            except Exception as e:
-                logger.error(f"Invalid video path: {e}")
-                return None
-
             # Frames extrahieren
             frames = self._extract_frames(video_path, NUM_FRAMES)
             if frames is None or len(frames) == 0:
