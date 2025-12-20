@@ -701,6 +701,99 @@ class ClipLibraryWidget(QWidget):
 
         logger.debug(f"Filtered to {len(filtered)} clips")
 
+    def _clear_filters(self):
+        """Clear search and filters."""
+        if self.search_input:
+            self.search_input.clear()
+        if self.filter_widget:
+            self.filter_widget._reset_filters()
+
+    def _render_empty_state(self):
+        """Render empty state message when no clips are found."""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(15)
+
+        # Icon/Emoji
+        icon_label = QLabel("🔍" if self.clips else "🎬")
+        icon_label.setStyleSheet("font-size: 64px; margin-bottom: 10px; color: #555;")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_label)
+
+        # Message
+        msg = "No clips match your search" if self.clips else "Your library is empty"
+        msg_label = QLabel(msg)
+        msg_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #888;")
+        msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(msg_label)
+
+        # Sub-message/Action
+        if self.clips:
+            sub_msg = QLabel("Try adjusting your filters")
+            sub_msg.setStyleSheet("color: #666; margin-bottom: 15px; font-size: 14px;")
+            sub_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(sub_msg)
+
+            clear_btn = QPushButton("Clear Filters")
+            clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            clear_btn.setStyleSheet("""
+                QPushButton {
+                    padding: 8px 16px;
+                    font-size: 13px;
+                    background-color: #3a3a3a;
+                    color: white;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }
+            """)
+            clear_btn.clicked.connect(self._clear_filters)
+
+            # Wrapper for button alignment
+            btn_wrapper = QWidget()
+            btn_layout = QHBoxLayout(btn_wrapper)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.addStretch()
+            btn_layout.addWidget(clear_btn)
+            btn_layout.addStretch()
+            layout.addWidget(btn_wrapper)
+        else:
+            sub_msg = QLabel("Import videos to get started")
+            sub_msg.setStyleSheet("color: #666; margin-bottom: 15px; font-size: 14px;")
+            sub_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(sub_msg)
+
+            import_btn = QPushButton("Import Clips")
+            import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            import_btn.setStyleSheet("""
+                QPushButton {
+                    padding: 10px 20px;
+                    background-color: #2a82da;
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #3a92ea;
+                }
+            """)
+            import_btn.clicked.connect(self._import_clips)
+
+            # Wrapper for button alignment
+            btn_wrapper = QWidget()
+            btn_layout = QHBoxLayout(btn_wrapper)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.addStretch()
+            btn_layout.addWidget(import_btn)
+            btn_layout.addStretch()
+            layout.addWidget(btn_wrapper)
+
+        # Add to main grid layout, centered
+        self.clip_layout.addWidget(container, 0, 0, 1, CLIPS_PER_ROW)
+
     def _render_clips(self):
         """Render clips in the grid layout with pagination for performance."""
         try:
@@ -720,9 +813,16 @@ class ClipLibraryWidget(QWidget):
                 # Process pending events to clean up deleted widgets
                 QApplication.processEvents()
 
+                # Check for empty state
+                total_clips = len(self.filtered_clips)
+                if total_clips == 0:
+                    self._render_empty_state()
+                    # Update status
+                    self.status_label.setText("No clips found")
+                    return # Exit early
+
                 # Limit initial render for performance (pagination)
                 clips_to_render = self.filtered_clips[:MAX_INITIAL_RENDER]
-                total_clips = len(self.filtered_clips)
 
                 logger.debug(f"Rendering {len(clips_to_render)} clips (max {MAX_INITIAL_RENDER})")
 
