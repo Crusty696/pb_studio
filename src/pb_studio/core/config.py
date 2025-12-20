@@ -63,7 +63,11 @@ class Config:
         self.config["Hardware"] = {
             "compute_device": "cpu",  # cpu, cuda, cuda:0, etc.
             "use_gpu_rendering": "true",
+ jules-sofortmassnahmen-12167217735598200101
+            "gpu_memory_reserve": "0.20",  # 20% Reserve für System
+
             "gpu_memory_reserve": "0.2",
+ main
         }
 
         # Audio Analysis
@@ -137,6 +141,23 @@ class Config:
         """
         try:
             return self.config.getint(section, option)
+        except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
+            return default
+
+    def get_float(self, section: str, option: str, default: float | None = None) -> float | None:
+        """
+        Holt einen Float-Konfigurationswert.
+
+        Args:
+            section: Section-Name
+            option: Option-Name
+            default: Default-Wert
+
+        Returns:
+            Float-Wert oder default
+        """
+        try:
+            return self.config.getfloat(section, option)
         except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
             return default
 
