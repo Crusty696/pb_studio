@@ -454,26 +454,26 @@ class AIEnhancedPacingEngine:
         try:
             # Configure base engine based on AI recommendations
             pacing_mode = self._map_strategy_to_mode(ai_analysis.recommended_strategy)
+            self.base_engine.pacing_mode = pacing_mode
 
-            # TODO: Configure base engine with AI recommendations
-            # For now, return placeholder cuts
+            # Extract audio features
+            bpm = ai_analysis.audio_features.get("bpm")
 
-            cuts = []
-            cut_interval = 3.0  # 3 second intervals
+            # Determine min_cut_interval based on strategy
+            min_cut_interval = 2.0  # Default
+            if pacing_mode == PacingMode.FAST:
+                min_cut_interval = 0.5
+            elif pacing_mode == PacingMode.SLOW:
+                min_cut_interval = 4.0
+            elif pacing_mode == PacingMode.DYNAMIC:
+                min_cut_interval = 1.0
 
-            for i, timestamp in enumerate(np.arange(0, total_duration, cut_interval)):
-                if timestamp >= total_duration:
-                    break
+            # Generate cuts using base engine
+            cuts = self.base_engine.generate_cut_list(
+                audio_path=audio_path, expected_bpm=bpm, min_cut_interval=min_cut_interval
+            )
 
-                cut = PacingCut(
-                    timestamp=timestamp,
-                    intensity=0.5 + (i % 3) * 0.2,  # Varying intensity
-                    trigger_type="ai_generated",
-                    confidence=ai_analysis.pacing_confidence,
-                )
-                cuts.append(cut)
-
-            return cuts[:50]  # Limit cuts
+            return cuts
 
         except Exception as e:
             logger.error(f"Base cut generation failed: {e}")
