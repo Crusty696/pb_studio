@@ -196,7 +196,11 @@ class DatabaseManager:
 
 
 class DuckDBManager:
-    """Manager für DuckDB-Analytics-Verbindungen."""
+    """Manager für DuckDB-Analytics-Verbindungen.
+
+    FIX: Thread-safe implementation using thread-local connections.
+    DuckDB is NOT thread-safe for concurrent writes - each thread needs its own connection.
+    """
 
     def __init__(self, db_path: str | None = None):
         """
@@ -207,7 +211,8 @@ class DuckDBManager:
         """
         if not DUCKDB_AVAILABLE:
             logger.warning("DuckDB nicht verfügbar - Analytics-Features deaktiviert")
-            self.connection = None
+            self.db_path = None
+            self._local = None
             return
 
         config = get_config()
@@ -218,15 +223,54 @@ class DuckDBManager:
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # DuckDB Connection
-        self.connection = duckdb.connect(str(self.db_path))
+        # FIX: Thread-local storage for per-thread connections
+        # Each thread gets its own DuckDB connection to prevent concurrent write conflicts
+        self._local = threading.local()
+
         logger.info(f"DuckDB Manager initialisiert: {self.db_path}")
+
+    def _get_connection(self):
+        """
+        Get thread-local DuckDB connection (creates one if needed).
+
+        FIX: Each thread gets its own connection to ensure thread safety.
+        DuckDB connections are NOT thread-safe for concurrent writes.
+
+        Returns:
+            DuckDB connection for current thread, or None if unavailable
+        """
+        if not DUCKDB_AVAILABLE or self.db_path is None:
+            return None
+
+        # Check if current thread has a connection
+        if not hasattr(self._local, 'connection') or self._local.connection is None:
+            # FIX: Handle DuckDB connection errors (locked/corrupt database)
+            try:
+                # Create new connection for this thread
+                self._local.connection = duckdb.connect(str(self.db_path))
+                logger.debug(f"DuckDB connection created for thread {threading.current_thread().name}")
+            except Exception as e:
+                logger.error(
+                    f"DuckDB connection failed for {self.db_path}: {e}. "
+                    "Database may be locked or corrupt."
+                )
+                self._local.connection = None
+                return None
+
+        return self._local.connection
+
+    # Legacy property for backwards compatibility
+    @property
+    def connection(self):
+        """Legacy property - returns thread-local connection."""
+        return self._get_connection()
 
     def execute(self, query: str, params: tuple[Any, ...] | None = None):
         """
         Führt eine DuckDB-Abfrage aus mit parametrisierten Queries.
 
         K-01 FIX: SQL Injection Prevention durch Parametrisierung.
+        FIX: Uses thread-local connection for thread safety.
 
         Args:
             query: SQL-Query mit Platzhaltern (? oder $1, $2, ...)
@@ -242,14 +286,16 @@ class DuckDBManager:
             # UNSICHER (nicht verwenden!):
             db.execute(f"SELECT * FROM clips WHERE id = {clip_id}")
         """
-        if self.connection is None:
+        # FIX: Get thread-local connection
+        conn = self._get_connection()
+        if conn is None:
             logger.error("DuckDB nicht verfügbar")
             return None
 
         try:
             if params is not None:
-                return self.connection.execute(query, params)
-            return self.connection.execute(query)
+                return conn.execute(query, params)
+            return conn.execute(query)
         except Exception as e:
             logger.error(f"DuckDB Query fehlgeschlagen: {e}")
             raise
@@ -259,6 +305,7 @@ class DuckDBManager:
         Führt eine Query aus und gibt Resultate als Liste zurück.
 
         K-01 FIX: SQL Injection Prevention durch Parametrisierung.
+        FIX: Uses thread-local connection for thread safety.
 
         Args:
             query: SQL-Query mit Platzhaltern (? oder $1, $2, ...)
@@ -271,25 +318,34 @@ class DuckDBManager:
             # Sicher (parametrisiert):
             results = db.query("SELECT * FROM clips WHERE name LIKE ?", (f"%{search}%",))
         """
-        if self.connection is None:
+        # FIX: Get thread-local connection
+        conn = self._get_connection()
+        if conn is None:
             logger.error("DuckDB nicht verfügbar")
             return []
 
         try:
             if params is not None:
-                result = self.connection.execute(query, params)
+                result = conn.execute(query, params)
             else:
-                result = self.connection.execute(query)
+                result = conn.execute(query)
             return result.fetchall()
         except Exception as e:
             logger.error(f"DuckDB Query fehlgeschlagen: {e}")
             return []
 
     def close(self) -> None:
-        """Schließt die DuckDB-Verbindung."""
-        if self.connection is not None:
-            self.connection.close()
-            logger.info("DuckDB Manager geschlossen")
+        """Schließt alle DuckDB-Verbindungen (alle Threads).
+
+        FIX: Closes thread-local connection if it exists.
+        Note: This only closes the calling thread's connection.
+        Other threads' connections will be closed when those threads exit.
+        """
+        if self._local is not None and hasattr(self._local, 'connection'):
+            if self._local.connection is not None:
+                self._local.connection.close()
+                self._local.connection = None
+        logger.info("DuckDB Manager geschlossen (current thread)")
 
 
 # Globale Manager-Instanzen

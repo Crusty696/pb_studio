@@ -52,6 +52,8 @@ def ffprobe_with_timeout(video_path: str, timeout: int = 30) -> dict[str, Any] |
     Bei beschädigten Dateien oder Netzwerk-Problemen kann ffprobe hängen.
     Diese Funktion setzt ein Timeout um das zu verhindern.
 
+    FIX: Uses Popen with explicit kill() to prevent zombie processes on all Python versions.
+
     Args:
         video_path: Pfad zur Video-Datei
         timeout: Timeout in Sekunden (default: 30)
@@ -59,6 +61,7 @@ def ffprobe_with_timeout(video_path: str, timeout: int = 30) -> dict[str, Any] |
     Returns:
         Probe-Ergebnis als Dict oder None bei Fehler/Timeout
     """
+    process = None
     try:
         # Verwende subprocess direkt mit Timeout statt ffmpeg-python
         cmd = [
@@ -72,25 +75,31 @@ def ffprobe_with_timeout(video_path: str, timeout: int = 30) -> dict[str, Any] |
             video_path,
         ]
 
-        result = subprocess.run(
+        # FIX: Use Popen instead of run() for explicit process control
+        creationflags = subprocess.CREATE_NO_WINDOW if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
+        process = subprocess.Popen(
             cmd,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
-            creationflags=subprocess.CREATE_NO_WINDOW
-            if hasattr(subprocess, "CREATE_NO_WINDOW")
-            else 0,
+            creationflags=creationflags,
         )
 
-        if result.returncode != 0:
-            logging.getLogger(__name__).error(f"ffprobe failed: {result.stderr}")
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # FIX: Explicitly kill zombie process on timeout
+            logging.getLogger(__name__).error(f"ffprobe timeout after {timeout}s, killing process...")
+            process.kill()
+            process.wait()  # Ensure process is fully terminated
             return None
 
-        return json.loads(result.stdout)
+        if process.returncode != 0:
+            logging.getLogger(__name__).error(f"ffprobe failed: {stderr}")
+            return None
 
-    except subprocess.TimeoutExpired:
-        logging.getLogger(__name__).error(f"ffprobe timeout after {timeout}s for: {video_path}")
-        return None
+        return json.loads(stdout)
+
     except json.JSONDecodeError as e:
         logging.getLogger(__name__).error(f"ffprobe output parse error: {e}")
         return None
@@ -99,6 +108,10 @@ def ffprobe_with_timeout(video_path: str, timeout: int = 30) -> dict[str, Any] |
         return None
     except Exception as e:
         logging.getLogger(__name__).error(f"ffprobe error: {e}")
+        # FIX: Ensure process is killed on any exception
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
         return None
 
 
@@ -300,21 +313,49 @@ class VideoManager:
                 logger.error(f"Failed to probe video: {video_path.name}")
                 return None
 
+            # FIX: Defensive validation of probe structure before accessing
+            if not isinstance(probe, dict):
+                logger.error(f"Invalid probe output type for {video_path.name}: {type(probe)}")
+                return None
+
+            if "streams" not in probe or not isinstance(probe["streams"], list):
+                logger.error(f"Malformed probe output (no streams) for {video_path.name}")
+                return None
+
+            if "format" not in probe or not isinstance(probe["format"], dict):
+                logger.error(f"Malformed probe output (no format) for {video_path.name}")
+                return None
+
             # Get video stream
-            video_stream = next((s for s in probe["streams"] if s["codec_type"] == "video"), None)
+            video_stream = next(
+                (s for s in probe["streams"]
+                 if isinstance(s, dict) and s.get("codec_type") == "video"),
+                None
+            )
 
             if video_stream is None:
                 # SEC-02 FIX: Don't expose full paths in error messages
                 logger.error(f"No video stream found in {video_path.name}")
                 return None
 
-            # Extract metadata
-            duration = float(probe["format"]["duration"])
-            width = int(video_stream["width"])
-            height = int(video_stream["height"])
-            codec = video_stream["codec_name"]
-            bitrate = int(probe["format"].get("bit_rate", 0))
-            format_name = probe["format"]["format_name"]
+            # FIX: Validate required fields exist before extraction
+            format_data = probe["format"]
+            if "duration" not in format_data:
+                logger.error(f"No duration in probe output for {video_path.name}")
+                return None
+
+            # Extract metadata with defensive .get() for optional fields
+            duration = float(format_data["duration"])
+            width = int(video_stream.get("width", 0))
+            height = int(video_stream.get("height", 0))
+            codec = video_stream.get("codec_name", "unknown")
+            bitrate = int(format_data.get("bit_rate", 0))
+            format_name = format_data.get("format_name", "unknown")
+
+            # FIX: Validate width/height are positive
+            if width <= 0 or height <= 0:
+                logger.error(f"Invalid video dimensions ({width}x{height}) for {video_path.name}")
+                return None
 
             # Calculate FPS with validation
             fps_str = video_stream.get("r_frame_rate", "0/1")

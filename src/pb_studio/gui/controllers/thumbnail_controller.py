@@ -229,6 +229,8 @@ class ThumbnailController(QObject):
             self._current_worker.cancel()
             self._current_worker.quit()
             self._current_worker.wait(1000)  # Wait up to 1 second
+            # FIX: Schedule worker for deletion to prevent memory leak
+            self._current_worker.deleteLater()
             self._current_worker = None
 
     def is_generating(self) -> bool:
@@ -238,9 +240,15 @@ class ThumbnailController(QObject):
     def _on_worker_finished(self, results: dict) -> None:
         """Handle worker completion."""
         self.generation_complete.emit(results)
+        # FIX: Schedule worker for deletion to prevent memory leak
+        if self._current_worker:
+            self._current_worker.deleteLater()
         self._current_worker = None
 
     def _on_worker_error(self, error_msg: str) -> None:
         """Handle worker error."""
         self.generation_error.emit(error_msg)
+        # FIX: Schedule worker for deletion to prevent memory leak
+        if self._current_worker:
+            self._current_worker.deleteLater()
         self._current_worker = None

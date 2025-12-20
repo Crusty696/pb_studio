@@ -12,6 +12,7 @@ Author: PB_studio Development Team
 """
 
 import logging
+import threading
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -261,6 +262,8 @@ class EmbeddingCache:
 
 # Singleton-Instanz für globalen Zugriff
 _embedding_cache: EmbeddingCache | None = None
+# FIX: Thread-safe singleton using Lock
+_embedding_cache_lock = threading.Lock()
 
 
 def get_embedding_cache() -> EmbeddingCache:
@@ -272,7 +275,10 @@ def get_embedding_cache() -> EmbeddingCache:
     """
     global _embedding_cache
 
+    # FIX: Double-checked locking pattern for thread-safe singleton
     if _embedding_cache is None:
-        _embedding_cache = EmbeddingCache()
+        with _embedding_cache_lock:
+            if _embedding_cache is None:
+                _embedding_cache = EmbeddingCache()
 
     return _embedding_cache

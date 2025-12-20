@@ -155,8 +155,10 @@ class SemanticAnalyzer:
                     self._model = CLIPModel.from_pretrained(
                         self.model_name, use_safetensors=True
                     ).to(self.device)
+                    # FIX: Set model to eval mode for inference (disables dropout, batch norm training)
+                    self._model.eval()
                     self._processor = CLIPProcessor.from_pretrained(self.model_name)
-                    logger.info("CLIP model loaded successfully (safetensors format)")
+                    logger.info("CLIP model loaded successfully (safetensors format, eval mode)")
                 finally:
                     # Stelle originalen Timeout wieder her
                     socket.setdefaulttimeout(original_timeout)
@@ -289,6 +291,10 @@ class SemanticAnalyzer:
             if progress_callback:
                 processed = min(start + bs, total)
                 progress_callback(processed, total)
+
+        # FIX: Clear GPU memory after batch processing to prevent memory leaks
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         return results
 

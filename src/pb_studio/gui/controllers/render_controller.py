@@ -238,14 +238,25 @@ class RenderController:
                         ((progress_percent - PACING_THRESHOLD) / (100 - PACING_THRESHOLD)) * 100
                     )
                     self.main_window.render_progress_dialog.set_current_phase(PHASE_RENDER)
+                    
+                    # FIX H-04: Dynamische GPU-Infos statt hardcodierter Werte
+                    try:
+                        from pb_studio.core.gpu_backend import get_backend_info
+                        gpu_info = get_backend_info()
+                        gpu_name = gpu_info.get("device_name", "CPU")
+                        encoder = gpu_info.get("backend", "cpu")
+                    except Exception:
+                        gpu_name = "Unknown"
+                        encoder = "auto"
+                    
                     self.main_window.render_progress_dialog.update_stage(
                         PHASE_RENDER,
                         PhaseStatus.RUNNING,
                         progress=phase_progress,
                         metrics={
                             "Auflösung": "1080p",
-                            "GPU": "AMD RX 7800 XT",
-                            "Encoder": "h264_amf",
+                            "GPU": gpu_name,
+                            "Encoder": encoder,
                             "Status": message,
                         },
                     )

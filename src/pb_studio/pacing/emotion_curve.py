@@ -86,8 +86,12 @@ class EmotionCurve:
         for i in range(len(self.points) - 1):
             if self.points[i].time <= time < self.points[i + 1].time:
                 p1, p2 = self.points[i], self.points[i + 1]
+                # FIX: Prevent Division by Zero when duplicate keyframes exist
+                time_diff = p2.time - p1.time
+                if time_diff < 1e-9:
+                    return p1.coordinates  # Return first point for duplicates
                 # Linear interpolation
-                t = (time - p1.time) / (p2.time - p1.time)
+                t = (time - p1.time) / time_diff
                 valence = p1.valence + t * (p2.valence - p1.valence)
                 arousal = p1.arousal + t * (p2.arousal - p1.arousal)
                 return EmotionCoordinates(valence=valence, arousal=arousal)
@@ -415,7 +419,11 @@ class EmotionCurveGenerator:
             if points[i][0] <= time < points[i + 1][0]:
                 t1, v1 = points[i]
                 t2, v2 = points[i + 1]
-                t = (time - t1) / (t2 - t1)
+                # FIX: Prevent Division by Zero when duplicate times exist
+                time_diff = t2 - t1
+                if time_diff < 1e-9:
+                    return v1  # Return first value for duplicates
+                t = (time - t1) / time_diff
                 return v1 + t * (v2 - v1)
 
         return points[-1][1]

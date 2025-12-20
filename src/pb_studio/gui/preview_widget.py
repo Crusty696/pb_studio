@@ -11,6 +11,7 @@ import threading
 from pathlib import Path
 
 import cv2
+import numpy as np  # FIX M-02: Benötigt für ascontiguousarray
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QImage, QPixmap
 from PyQt6.QtWidgets import (
@@ -150,10 +151,15 @@ class PreviewWidget(QWidget):
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # QImage-Erstellung und UI-Update außerhalb des Locks (nicht VideoCapture-abhängig)
-        # Convert to QImage
+        # FIX M-02: Erstelle explizite Kopie der Daten für Memory-Safety
+        # numpy-Array muss contiguous sein und Daten müssen während QImage-Lebensdauer gültig bleiben
+        frame_rgb = np.ascontiguousarray(frame_rgb)  # Garantiert contiguous memory layout
         h, w, ch = frame_rgb.shape
         bytes_per_line = ch * w
+        # Erstelle QImage und kopiere sofort zu QPixmap (QPixmap kopiert die Daten)
         qt_image = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+        # .copy() erstellt eine tiefe Kopie, die unabhängig vom numpy-Array ist
+        qt_image = qt_image.copy()
 
         # Scale to fit widget
         pixmap = QPixmap.fromImage(qt_image)

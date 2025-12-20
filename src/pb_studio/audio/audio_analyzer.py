@@ -24,6 +24,7 @@ Architecture:
 import hashlib
 import json
 import logging
+import os  # FIX: Import os at module level - was missing on Windows causing NameError
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TypeAlias, TypedDict
@@ -175,8 +176,33 @@ class AudioAnalyzer:
         self._stem_separator = None
 
         if use_cache:
-            # SEC-03 FIX: Create cache directory with secure permissions (owner-only)
-            self.cache_dir.mkdir(exist_ok=True, mode=0o700)
+            # FIX K-02: Plattformübergreifende sichere Cache-Verzeichnis-Erstellung
+            # Windows ignoriert Unix mode=0o700, daher separate Behandlung
+            self.cache_dir.mkdir(exist_ok=True, parents=True)
+            
+            import sys
+            if sys.platform == "win32":
+                # Windows: Versuche DACL zu setzen (optional, nicht kritisch bei Fehler)
+                try:
+                    import subprocess
+                    # icacls setzt Berechtigungen: (OI)(CI)F = Vollzugriff für aktuellen User
+                    # /inheritance:r = Entfernt vererbte Berechtigungen
+                    subprocess.run(
+                        ["icacls", str(self.cache_dir), "/inheritance:r", "/grant:r", 
+                         f"{os.environ.get('USERNAME', 'CURRENT_USER')}:(OI)(CI)F"],
+                        check=False,
+                        capture_output=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                    )
+                except Exception as e:
+                    logger.debug(f"Windows DACL konnte nicht gesetzt werden (nicht kritisch): {e}")
+            else:
+                # Unix: chmod 700 (owner-only access)
+                try:
+                    # FIX: Removed redundant 'import os' - now imported at module level
+                    os.chmod(self.cache_dir, 0o700)
+                except Exception as e:
+                    logger.debug(f"Unix permissions konnten nicht gesetzt werden: {e}")
 
     def __repr__(self) -> str:
         """String representation for debugging."""

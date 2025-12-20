@@ -94,6 +94,7 @@ from .export_presets import ExportPreset, ExportPresetManager
 logger = logging.getLogger(__name__)
 
 # SEC-06 FIX: FFmpeg timeout constants (prevents hanging processes)
+# FIX: These constants are now ACTIVELY USED via _run_ffmpeg_with_timeout()
 FFMPEG_TIMEOUT_SEGMENT = 300  # 5 minutes per segment
 FFMPEG_TIMEOUT_CONCAT = 1800  # 30 minutes for concatenation (1h videos)
 FFMPEG_TIMEOUT_PREVIEW = 120  # 2 minutes for preview generation
@@ -163,9 +164,20 @@ class RenderSettings(BaseModel):
 
         Security: Prevents command injection via bitrate parameter.
         Format: digits + optional 'k' or 'M' (e.g., "128k", "0.5M")
+
+        FIX: Added explicit empty string check and length validation.
         """
         import re
 
+        # FIX: Explicit empty string check
+        if not v or not isinstance(v, str):
+            raise ValueError("audio_bitrate cannot be empty")
+
+        # FIX: Length limit to prevent DoS via extremely long strings
+        if len(v) > 20:
+            raise ValueError(f"audio_bitrate too long: {len(v)} chars (max 20)")
+
+        # Regex requires at least one digit, optionally followed by decimal and k/M suffix
         if not re.match(r"^\d+(\.\d+)?[kM]?$", v):
             raise ValueError(f"Invalid audio_bitrate format: '{v}'. Expected: '128k' or '0.5M'")
         return v
@@ -227,6 +239,9 @@ class VideoRenderer:
         # Build cache index on startup (1 disk scan) instead of N disk checks
         # Typical speedup: 3-5x faster cache checks for large renders
         self.segment_cache_index: set[str] = set()
+        # FIX: Thread-safe lock for cache index operations
+        # Prevents race conditions when multiple threads check/update cache simultaneously
+        self._cache_index_lock = threading.Lock()
         self._rebuild_cache_index()
         logger.info(
             f"Video-Segment-Cache aktiviert: {self.segment_cache_dir} ({len(self.segment_cache_index)} cached segments)"
@@ -289,16 +304,61 @@ class VideoRenderer:
 
         Scans cache directory ONCE on startup instead of N file.exists() calls.
         Typical speedup: 3-5x faster cache checks for 100+ segments.
+
+        FIX: Thread-safe with lock to prevent concurrent modification.
         """
-        self.segment_cache_index.clear()
+        # FIX: Use lock to prevent race conditions during index rebuild
+        with self._cache_index_lock:
+            self.segment_cache_index.clear()
+            try:
+                for cache_file in self.segment_cache_dir.glob("*.mp4"):
+                    # Extract cache key from filename (remove .mp4 extension)
+                    cache_key = cache_file.stem
+                    self.segment_cache_index.add(cache_key)
+                logger.debug(f"Cache index rebuilt: {len(self.segment_cache_index)} entries")
+            except Exception as e:
+                logger.warning(f"Failed to rebuild cache index: {e}")
+
+    def _run_ffmpeg_with_timeout(
+        self, stream, timeout: int = FFMPEG_TIMEOUT_SEGMENT
+    ) -> tuple[bytes, bytes]:
+        """
+        FIX: Run ffmpeg stream with timeout to prevent zombie processes.
+
+        Uses run_async() + communicate(timeout) instead of run() which has no timeout.
+        Kills process on timeout to prevent resource leaks.
+
+        Args:
+            stream: ffmpeg stream to execute
+            timeout: Timeout in seconds (default: FFMPEG_TIMEOUT_SEGMENT)
+
+        Returns:
+            Tuple of (stdout, stderr) bytes
+
+        Raises:
+            subprocess.TimeoutExpired: If process exceeds timeout
+            ffmpeg.Error: If ffmpeg returns non-zero exit code
+        """
+        process = stream.run_async(
+            pipe_stdout=True,
+            pipe_stderr=True,
+            cmd=str(get_ffmpeg_path()),
+        )
+
         try:
-            for cache_file in self.segment_cache_dir.glob("*.mp4"):
-                # Extract cache key from filename (remove .mp4 extension)
-                cache_key = cache_file.stem
-                self.segment_cache_index.add(cache_key)
-            logger.debug(f"Cache index rebuilt: {len(self.segment_cache_index)} entries")
-        except Exception as e:
-            logger.warning(f"Failed to rebuild cache index: {e}")
+            stdout, stderr = process.communicate(timeout=timeout)
+
+            if process.returncode != 0:
+                raise ffmpeg.Error("ffmpeg", stdout, stderr)
+
+            return stdout, stderr
+
+        except subprocess.TimeoutExpired:
+            # FIX: Kill zombie process on timeout
+            logger.error(f"FFmpeg process timed out after {timeout}s, killing...")
+            process.kill()
+            process.wait()  # Ensure process is fully terminated
+            raise
 
     def _test_encoder(self, encoder: str) -> bool:
         """Test if encoder actually works (not just exists).
@@ -1163,6 +1223,7 @@ class VideoRenderer:
 
         MEGA-OPTIMIZATION: Avoids expensive re-encoding of identical segments.
         P3-FIX: Uses in-memory index instead of disk I/O (3-5x faster).
+        FIX: Thread-safe with lock to prevent race conditions.
 
         Args:
             cache_key: Cache key from _get_segment_cache_key()
@@ -1173,11 +1234,19 @@ class VideoRenderer:
         if not self.segment_cache_enabled:
             return None
 
-        # P3-FIX: Check in-memory index (O(1)) instead of file.exists() (O(disk))
-        if cache_key in self.segment_cache_index:
-            cache_file = self.segment_cache_dir / f"{cache_key}.mp4"
-            logger.debug(f"✅ Segment aus Cache geladen (5-10x schneller!): {cache_key[:8]}...")
-            return cache_file
+        # FIX: Use lock for thread-safe index check and modification
+        with self._cache_index_lock:
+            # P3-FIX: Check in-memory index (O(1)) instead of file.exists() (O(disk))
+            if cache_key in self.segment_cache_index:
+                cache_file = self.segment_cache_dir / f"{cache_key}.mp4"
+                # FIX H-01: Prüfe ob Datei wirklich existiert (könnte manuell gelöscht worden sein)
+                if cache_file.exists():
+                    logger.debug(f"✅ Segment aus Cache geladen (5-10x schneller!): {cache_key[:8]}...")
+                    return cache_file
+                else:
+                    # Entferne verwaisten Index-Eintrag
+                    self.segment_cache_index.discard(cache_key)
+                    logger.warning(f"Cache-Index-Eintrag verwaist (Datei fehlt): {cache_key[:8]}...")
 
         return None
 
@@ -1187,6 +1256,7 @@ class VideoRenderer:
 
         MEGA-OPTIMIZATION: Stores segment for future reuse.
         P3-FIX: Updates in-memory index for instant future lookups.
+        FIX: Thread-safe with lock to prevent race conditions.
 
         Args:
             cache_key: Cache key from _get_segment_cache_key()
@@ -1197,11 +1267,13 @@ class VideoRenderer:
 
         cache_file = self.segment_cache_dir / f"{cache_key}.mp4"
         try:
-            # Copy segment to cache
+            # Copy segment to cache (outside lock - file I/O can be slow)
             shutil.copy2(segment_path, cache_file)
 
-            # P3-FIX: Update index for instant future lookups
-            self.segment_cache_index.add(cache_key)
+            # FIX: Use lock for thread-safe index update
+            with self._cache_index_lock:
+                # P3-FIX: Update index for instant future lookups
+                self.segment_cache_index.add(cache_key)
 
             logger.debug(f"Segment in Cache gespeichert: {cache_key[:8]}...")
         except Exception as e:
@@ -1411,12 +1483,13 @@ class VideoRenderer:
         try:
             if has_audio:
                 # Normal extraction with existing audio
-                (
+                # FIX: Use _run_ffmpeg_with_timeout to prevent zombie processes
+                stream = (
                     ffmpeg.input(str(clip_path), ss=clip_start, t=duration, hwaccel="auto")
                     .output(str(output_path), **output_options)
                     .overwrite_output()
-                    .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
                 )
+                self._run_ffmpeg_with_timeout(stream, timeout=FFMPEG_TIMEOUT_SEGMENT)
             else:
                 # BUGFIX: Add silent audio track for videos without audio
                 # This ensures consistent stream structure for concat demuxer
@@ -1428,11 +1501,12 @@ class VideoRenderer:
                 silent_audio = ffmpeg.input(
                     "anullsrc=channel_layout=stereo:sample_rate=44100", f="lavfi", t=duration
                 )
-                (
+                # FIX: Use _run_ffmpeg_with_timeout to prevent zombie processes
+                stream = (
                     ffmpeg.output(video_input, silent_audio, str(output_path), **output_options)
                     .overwrite_output()
-                    .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
                 )
+                self._run_ffmpeg_with_timeout(stream, timeout=FFMPEG_TIMEOUT_SEGMENT)
 
             logger.debug(f"Segment {index} extracted successfully")
             return output_path
@@ -1448,13 +1522,14 @@ class VideoRenderer:
                 # Retry with CPU encoding (keep hwaccel for decode speedup)
                 output_options = self._get_encoder_options(False)
 
+                # FIX: Use _run_ffmpeg_with_timeout for CPU fallback too
                 if has_audio:
-                    (
+                    stream = (
                         ffmpeg.input(str(clip_path), ss=clip_start, t=duration, hwaccel="auto")
                         .output(str(output_path), **output_options)
                         .overwrite_output()
-                        .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
                     )
+                    self._run_ffmpeg_with_timeout(stream, timeout=FFMPEG_TIMEOUT_SEGMENT)
                 else:
                     video_input = ffmpeg.input(
                         str(clip_path), ss=clip_start, t=duration, hwaccel="auto"
@@ -1462,11 +1537,11 @@ class VideoRenderer:
                     silent_audio = ffmpeg.input(
                         "anullsrc=channel_layout=stereo:sample_rate=44100", f="lavfi", t=duration
                     )
-                    (
+                    stream = (
                         ffmpeg.output(video_input, silent_audio, str(output_path), **output_options)
                         .overwrite_output()
-                        .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
                     )
+                    self._run_ffmpeg_with_timeout(stream, timeout=FFMPEG_TIMEOUT_SEGMENT)
 
                 logger.debug(f"Segment {index} extracted successfully (CPU fallback)")
                 return output_path

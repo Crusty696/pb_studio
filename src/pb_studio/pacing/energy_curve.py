@@ -156,7 +156,11 @@ class EnergyCurveData:
         t0, t1 = self.times[idx - 1], self.times[idx]
         e0, e1 = self.energy_values[idx - 1], self.energy_values[idx]
 
-        weight = (time - t0) / (t1 - t0)
+        # FIX: Prevent Division by Zero when duplicate times exist
+        time_diff = t1 - t0
+        if time_diff < 1e-9:
+            return e0  # Return first value for duplicates
+        weight = (time - t0) / time_diff
         return e0 + weight * (e1 - e0)
 
     def get_energy_zone(

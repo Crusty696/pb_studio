@@ -65,6 +65,9 @@ class BeatGridInfo:
     @property
     def beat_duration(self) -> float:
         """Calculate duration of one beat in seconds."""
+        # FIX: Prevent ZeroDivisionError when bpm is 0 or negative
+        if self.bpm <= 0:
+            return 0.5  # Default fallback: 120 BPM equivalent
         return 60.0 / self.bpm
 
     @property
@@ -300,7 +303,8 @@ class PacingEngine:
             True if cut was removed, False if not found
         """
         for i, cut in enumerate(self._cuts):
-            if cut.clip_id == clip_id and cut.start_time == start_time:
+            # FIX: Use epsilon comparison for float start_time (1ms tolerance)
+            if cut.clip_id == clip_id and abs(cut.start_time - start_time) < 0.001:
                 removed = self._cuts.pop(i)
                 logger.info(f"Cut removed: {removed}")
                 return True

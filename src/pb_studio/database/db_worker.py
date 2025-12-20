@@ -8,10 +8,12 @@ Author: PB_studio Development Team
 """
 
 import json
+import threading
 from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.sql.expression import true, false  # FIX H-02/H-03: SQLAlchemy Boolean Best Practice
 
 from ..utils.logger import get_logger
 from .models import VideoClip
@@ -51,7 +53,9 @@ class DatabaseWorker(QObject):
         """
         super().__init__()
         self.session = session
-        self._cancelled = False
+        # FIX: Use threading.Event() instead of bool for thread-safe cancellation
+        # Bool flags are not atomic and can cause race conditions between threads
+        self._cancel_event = threading.Event()
 
     def __del__(self):
         """
@@ -78,7 +82,8 @@ class DatabaseWorker(QObject):
             if self.session is not None:
                 self.session.close()
                 self.session = None
-            self._cancelled = True
+            # FIX: Use Event.set() for thread-safe cancellation
+            self._cancel_event.set()
         except Exception as e:
             logger.warning(f"Error during db_worker cleanup: {e}")
 
@@ -92,7 +97,8 @@ class DatabaseWorker(QObject):
         """
         try:
             # Cancel is per-operation; reset at the start of a new query.
-            self._cancelled = False
+            # FIX: Use Event.clear() for thread-safe reset
+            self._cancel_event.clear()
 
             logger.info("DatabaseWorker: Starting clip query...")
             self.progress_update.emit(0, 100, "Querying database...")
@@ -109,7 +115,7 @@ class DatabaseWorker(QObject):
             # Eager Loading: Alle Analyse-Daten in EINEM Query laden
             query = (
                 self.session.query(VideoClip)
-                .filter(VideoClip.is_available == True)
+                .filter(VideoClip.is_available.is_(True))  # FIX H-02: SQLAlchemy Boolean Best Practice
                 .options(
                     # Alle Relationships eager loaden (aus Phase 1)
                     joinedload(VideoClip.analysis_status),
@@ -140,7 +146,8 @@ class DatabaseWorker(QObject):
             unanalyzed_count = 0
 
             for i, clip_db in enumerate(db_clips):
-                if self._cancelled:
+                # FIX: Use Event.is_set() for thread-safe cancellation check
+                if self._cancel_event.is_set():
                     logger.info("DatabaseWorker: Query cancelled by user")
                     return
 
@@ -424,12 +431,13 @@ class DatabaseWorker(QObject):
             if is_analyzed:
                 # All analysis flags must be True
                 query = query.filter(
-                    ClipAnalysisStatus.colors_analyzed == True,
-                    ClipAnalysisStatus.motion_analyzed == True,
-                    ClipAnalysisStatus.scene_analyzed == True,
-                    ClipAnalysisStatus.mood_analyzed == True,
-                    ClipAnalysisStatus.objects_analyzed == True,
-                    ClipAnalysisStatus.style_analyzed == True,
+                    # FIX H-03: SQLAlchemy Boolean Best Practice - use is_(True)
+                    ClipAnalysisStatus.colors_analyzed.is_(True),
+                    ClipAnalysisStatus.motion_analyzed.is_(True),
+                    ClipAnalysisStatus.scene_analyzed.is_(True),
+                    ClipAnalysisStatus.mood_analyzed.is_(True),
+                    ClipAnalysisStatus.objects_analyzed.is_(True),
+                    ClipAnalysisStatus.style_analyzed.is_(True),
                 )
             else:
                 # At least one analysis flag is False or status doesn't exist
@@ -437,13 +445,14 @@ class DatabaseWorker(QObject):
 
                 query = query.filter(
                     or_(
-                        ClipAnalysisStatus.clip_id == None,
-                        ClipAnalysisStatus.colors_analyzed == False,
-                        ClipAnalysisStatus.motion_analyzed == False,
-                        ClipAnalysisStatus.scene_analyzed == False,
-                        ClipAnalysisStatus.mood_analyzed == False,
-                        ClipAnalysisStatus.objects_analyzed == False,
-                        ClipAnalysisStatus.style_analyzed == False,
+                        # FIX H-03: SQLAlchemy Boolean Best Practice - use is_()
+                        ClipAnalysisStatus.clip_id.is_(None),
+                        ClipAnalysisStatus.colors_analyzed.is_(False),
+                        ClipAnalysisStatus.motion_analyzed.is_(False),
+                        ClipAnalysisStatus.scene_analyzed.is_(False),
+                        ClipAnalysisStatus.mood_analyzed.is_(False),
+                        ClipAnalysisStatus.objects_analyzed.is_(False),
+                        ClipAnalysisStatus.style_analyzed.is_(False),
                     )
                 )
             logger.debug(f"Filter applied: is_analyzed = {is_analyzed}")
@@ -452,5 +461,6 @@ class DatabaseWorker(QObject):
 
     def cancel(self):
         """Cancel current operation."""
+        # FIX: Use Event.set() for thread-safe cancel signaling
+        self._cancel_event.set()
         logger.info("DatabaseWorker: Cancel requested")
-        self._cancelled = True

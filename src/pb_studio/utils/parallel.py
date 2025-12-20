@@ -100,25 +100,32 @@ class ParallelProcessor:
 
         Executor = ProcessPoolExecutor if self.use_processes else ThreadPoolExecutor
 
-        with Executor(max_workers=self.max_workers) as executor:
-            # Submit all tasks
-            future_to_index = {executor.submit(func, item): i for i, item in enumerate(items_list)}
+        # FIX: Explicit exception handling for better error recovery
+        # The context manager ensures executor.shutdown(wait=True) is always called
+        try:
+            with Executor(max_workers=self.max_workers) as executor:
+                # Submit all tasks
+                future_to_index = {executor.submit(func, item): i for i, item in enumerate(items_list)}
 
-            # Collect results as they complete
-            completed = 0
-            for future in as_completed(future_to_index):
-                index = future_to_index[future]
-                try:
-                    result = future.result()
-                    results[index] = result
-                    completed += 1
+                # Collect results as they complete
+                completed = 0
+                for future in as_completed(future_to_index):
+                    index = future_to_index[future]
+                    try:
+                        result = future.result()
+                        results[index] = result
+                        completed += 1
 
-                    if progress_callback:
-                        progress_callback(completed, total)
+                        if progress_callback:
+                            progress_callback(completed, total)
 
-                except Exception as e:
-                    logger.error(f"Error processing item {index}: {e}")
-                    results[index] = None
+                    except Exception as e:
+                        logger.error(f"Error processing item {index}: {e}")
+                        results[index] = None
+        except Exception as e:
+            # FIX: Log and propagate executor-level errors
+            logger.error(f"ParallelProcessor executor error: {e}", exc_info=True)
+            raise
 
         return results
 

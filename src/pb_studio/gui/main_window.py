@@ -14,6 +14,7 @@ Features:
 Author: PB_studio Development Team
 """
 
+import threading
 from pathlib import Path
 
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
@@ -83,11 +84,14 @@ class ClipAnalysisWorker(QObject):
     def __init__(self, clip_ids: list):
         super().__init__()
         self.clip_ids = clip_ids
-        self._stop_requested = False
+        # FIX: Use threading.Event() instead of bool for thread-safe stop signaling
+        # Bool flags are not atomic and can cause race conditions between threads
+        self._stop_event = threading.Event()
 
     def stop(self):
-        """Request to stop the analysis."""
-        self._stop_requested = True
+        """Request to stop the analysis (thread-safe)."""
+        # FIX: Event.set() is atomic and immediately visible to all threads
+        self._stop_event.set()
 
     def run(self):
         """Run clip analysis in background thread."""
@@ -96,7 +100,8 @@ class ClipAnalysisWorker(QObject):
             result = analyzer.batch_analyze(
                 clip_ids=self.clip_ids,
                 progress_callback=self._on_progress,
-                stop_flag=lambda: self._stop_requested,
+                # FIX: Use Event.is_set() for thread-safe stop checking
+                stop_flag=lambda: self._stop_event.is_set(),
             )
             self.finished.emit(result)
         except Exception as e:
@@ -147,7 +152,8 @@ class RenderWorker(QThread):
         self.output_path = output_path
         self.duration = duration
         self.render_settings = render_settings
-        self._is_cancelled = False
+        # FIX: Use threading.Event() instead of bool for thread-safe cancel signaling
+        self._cancel_event = threading.Event()
 
     def run(self):
         """
@@ -191,7 +197,8 @@ class RenderWorker(QThread):
             self.cutlist_generated.emit(cut_list)
             logger.debug("RenderWorker: Cut list emitted for timeline visualization")
 
-            if self._is_cancelled:
+            # FIX: Use Event.is_set() for thread-safe cancel check
+            if self._cancel_event.is_set():
                 self.render_finished.emit(False, "Render cancelled")
                 return
 
@@ -222,9 +229,10 @@ class RenderWorker(QThread):
 
             # M-02 FIX: Use throttled callback helper (DRY principle)
             # Prevents Windows USER object handle exhaustion (10k limit per process)
+            # FIX: Use Event.is_set() for thread-safe cancel check in callback
             render_progress_callback = create_throttled_callback(
                 lambda percent, msg: (
-                    self.progress_updated.emit(percent, msg) if not self._is_cancelled else None
+                    self.progress_updated.emit(percent, msg) if not self._cancel_event.is_set() else None
                 ),
                 scale_min=20,  # Map 0% to 20% (after pacing phase)
                 scale_max=100,  # Map 100% to 100%
@@ -241,11 +249,12 @@ class RenderWorker(QThread):
                 progress_callback=progress_callback,
             )
 
-            if result and not self._is_cancelled:
+            # FIX: Use Event.is_set() for thread-safe cancel check
+            if result and not self._cancel_event.is_set():
                 logger.info(f"RenderWorker: Render successful: {result}")
                 self.render_finished.emit(True, str(result))
             else:
-                error_msg = "Render cancelled" if self._is_cancelled else "Render failed"
+                error_msg = "Render cancelled" if self._cancel_event.is_set() else "Render failed"
                 logger.warning(f"RenderWorker: {error_msg}")
                 self.render_finished.emit(False, error_msg)
 
@@ -255,7 +264,8 @@ class RenderWorker(QThread):
 
     def cancel(self):
         """Cancel the rendering operation."""
-        self._is_cancelled = True
+        # FIX: Use Event.set() for thread-safe cancel signaling
+        self._cancel_event.set()
         logger.info("RenderWorker: Cancel requested")
 
 
