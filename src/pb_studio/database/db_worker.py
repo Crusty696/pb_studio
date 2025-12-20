@@ -203,6 +203,11 @@ class DatabaseWorker(QObject):
         if not filters:
             return query
 
+        # Filter: project_id (direct on VideoClip)
+        if "project_id" in filters and filters["project_id"] is not None:
+            query = query.filter(VideoClip.project_id == filters["project_id"])
+            logger.debug(f"Filter applied: project_id = {filters['project_id']}")
+
         # Filter: motion_type (requires JOIN to ClipMotion)
         if "motion_type" in filters and filters["motion_type"]:
             motion_type = filters["motion_type"]
