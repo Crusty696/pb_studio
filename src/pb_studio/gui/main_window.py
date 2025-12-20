@@ -454,11 +454,17 @@ class MainWindow(QMainWindow):
         # Play button
         self.play_button = QPushButton("▶ Play")
         self.play_button.setMinimumWidth(100)
+        self.play_button.setToolTip("Start/Pause playback (Space)")
+        self.play_button.setAccessibleName("Play Button")
+        self.play_button.setAccessibleDescription("Starts or pauses video playback")
         self.play_button.clicked.connect(self.toggle_playback)
 
         # Stop button
         self.stop_button = QPushButton("⏹ Stop")
         self.stop_button.setMinimumWidth(100)
+        self.stop_button.setToolTip("Stop playback")
+        self.stop_button.setAccessibleName("Stop Button")
+        self.stop_button.setAccessibleDescription("Stops video playback and resets position")
         self.stop_button.clicked.connect(self.stop_playback)
         self.stop_button.setEnabled(False)
 
@@ -782,6 +788,15 @@ class MainWindow(QMainWindow):
             "Keyboard-Shortcuts anzeigen",
             "Help",
             self.shortcut_manager.show_help,
+        )
+
+        # Playback
+        self.shortcut_manager.register_shortcut(
+            "toggle_playback",
+            "Space",
+            "Start/Pause playback",
+            "Playback",
+            self.toggle_playback,
         )
 
         # Verbinde Menu-Action mit ShortcutManager (wurde in _create_menu_bar() erstellt)
