@@ -347,9 +347,45 @@ class StructureAnalyzer:
             segment_chroma = chroma[:, start_frame:end_frame]
             chroma_mean = np.mean(segment_chroma, axis=1)
 
+            # Gradient berechnen (lineare Regression der normalisierten RMS-Kurve)
+            gradient = 0.0
+            if end_frame > start_frame:
+                segment_rms_curve = rms[start_frame:end_frame]
+                # Normalisieren relativ zum Song-Median
+                normalized_curve = segment_rms_curve / rms_median
+
+                # Zeitachse für Regression (in Sekunden)
+                times = librosa.frames_to_time(
+                    np.arange(len(normalized_curve)), sr=sr, hop_length=self.hop_length
+                )
+
+                if len(times) > 1:
+                    # Lineare Regression: slope, intercept
+                    slope, _ = np.polyfit(times, normalized_curve, 1)
+                    gradient = slope
+
+            # Energy des nächsten Segments (Look-ahead)
+            next_energy = None
+            if i < len(boundary_times) - 2:
+                next_start_time = float(boundary_times[i + 1])
+                next_end_time = float(boundary_times[i + 2])
+                n_start = int(next_start_time * sr / self.hop_length)
+                n_end = min(int(next_end_time * sr / self.hop_length), len(rms))
+
+                if n_end > n_start:
+                    next_segment_rms = np.mean(rms[n_start:n_end])
+                    next_energy = float(next_segment_rms / rms_median)
+
             # Segment-Typ klassifizieren
             segment_type = self._infer_segment_type(
-                i, len(boundary_times) - 1, normalized_energy, start_time, end_time, duration
+                i,
+                len(boundary_times) - 1,
+                normalized_energy,
+                start_time,
+                end_time,
+                duration,
+                gradient=gradient,
+                next_energy=next_energy,
             )
 
             segments.append(
@@ -377,6 +413,8 @@ class StructureAnalyzer:
         start_time: float,
         end_time: float,
         total_duration: float,
+        gradient: float = 0.0,
+        next_energy: float | None = None,
     ) -> str:
         """
         Inferiert Segment-Typ mit verbesserter Heuristik.
@@ -388,6 +426,8 @@ class StructureAnalyzer:
             start_time: Start-Zeit
             end_time: End-Zeit
             total_duration: Gesamtdauer
+            gradient: Energy-Gradient (Änderung der normalisierten Energy pro Sekunde)
+            next_energy: Energy des nächsten Segments (optional)
 
         Returns:
             Segment-Typ (intro, verse, chorus, drop, bridge, outro)
@@ -407,6 +447,17 @@ class StructureAnalyzer:
         if relative_position > 0.85 and energy < 0.9:
             return "outro"
 
+        # Build-up: Steigende Energy vor hohem Segment
+        # Gradient > 0.05 bedeutet deutlichen Anstieg
+        # Vor hohem Segment oder generell sehr starker Anstieg
+        if gradient > 0.05:
+            # Wenn nächstes Segment existiert und lauter ist, ist es wahrscheinlich ein Build-up
+            if next_energy is not None and next_energy > energy:
+                return "build-up"
+            # Wenn es generell ein starker Anstieg ist, auch ohne Next-Check (z.B. am Ende)
+            if gradient > 0.1:
+                return "build-up"
+
         # Bridge: Mittlere Position (40-60%) + moderate Energy
         if 0.4 < relative_position < 0.6 and 0.85 < energy < 1.15:
             return "bridge"
@@ -418,9 +469,6 @@ class StructureAnalyzer:
         # Chorus: Hohe Energy (>1.15x Median)
         if energy > 1.15:
             return "chorus"
-
-        # Build-up: Steigende Energy vor hohem Segment
-        # (Erkennung würde Energy-Gradient erfordern - TODO)
 
         # Verse: Moderate bis niedrige Energy
         if energy < 1.05:
