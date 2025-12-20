@@ -407,11 +407,58 @@ class AIEnhancedPacingEngine:
     def _calculate_energy_correlation(
         self, audio_features: dict[str, Any], video_features: dict[str, Any]
     ) -> float:
-        """Calculate audio-video energy correlation."""
-        try:
-            # Simple correlation calculation
-            # TODO: Implement sophisticated energy correlation analysis
+        """
+        Calculate sophisticated audio-video energy correlation.
 
+        Uses temporal energy data from audio (RMS) and video (Motion) if available.
+        Falls back to scalar correlation if detailed data is missing.
+        """
+        try:
+            # 1. Try to get detailed temporal data
+            spectral_features = audio_features.get("spectral_features")
+            motion_series = video_features.get("motion_series")
+            motion_times = video_features.get("motion_times")
+
+            if spectral_features and motion_series and motion_times:
+                # Get audio energy and times
+                audio_energy = spectral_features.get("rms_energy")
+                audio_times = spectral_features.get("frame_times")
+
+                if audio_energy and audio_times:
+                    # Convert to numpy arrays for easier handling
+                    audio_energy = np.array(audio_energy)
+                    audio_times = np.array(audio_times)
+                    motion_series = np.array(motion_series)
+                    motion_times = np.array(motion_times)
+
+                    # Normalize both series to 0-1 range
+                    if np.max(audio_energy) > 0:
+                        audio_energy = audio_energy / np.max(audio_energy)
+                    if np.max(motion_series) > 0:
+                        motion_series = motion_series / np.max(motion_series)
+
+                    # Resample audio energy to match motion times
+                    # We interpolate audio energy at the timestamps where we have motion data
+                    resampled_audio_energy = np.interp(motion_times, audio_times, audio_energy)
+
+                    # Calculate Pearson correlation coefficient
+                    if len(resampled_audio_energy) > 1 and len(motion_series) > 1:
+                        correlation = np.corrcoef(resampled_audio_energy, motion_series)[0, 1]
+
+                        # Handle NaN (e.g., constant input)
+                        if np.isnan(correlation):
+                            correlation = 0.0
+
+                        # Map correlation (-1 to 1) to a useful score (0 to 1)
+                        # We value positive correlation primarily.
+                        # Negative correlation means low energy when video has high motion (or vice versa), which is mismatch.
+                        # So we can just clamp negative values to 0.
+                        normalized_correlation = max(0.0, correlation)
+
+                        logger.debug(f"Calculated temporal energy correlation: {normalized_correlation:.3f}")
+                        return float(normalized_correlation)
+
+            # 2. Fallback: Simple correlation calculation
             bpm = audio_features.get("bpm", 120)
             video_confidence = video_features.get("confidence", 0.5)
 
