@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from scenedetect import ContentDetector, SceneManager, open_video
 
 from ..analysis.analyzers.multi_modal_analyzer import (
     MultiModalAnalyzer,
@@ -201,7 +202,7 @@ class AIEnhancedPacingEngine:
 
             # 2. Scene-Aware Analysis
             dominant_scenes, scene_transitions, mood_consistency = self._analyze_scenes(
-                video_features
+                video_features, video_path
             )
 
             # 3. AI Cut Point Generation
@@ -325,22 +326,70 @@ class AIEnhancedPacingEngine:
 
         return final_cuts
 
-    def _analyze_scenes(self, video_features: dict[str, Any]) -> tuple[list[str], list[float], str]:
-        """Analyze video scenes for pacing decisions."""
+    def _analyze_scenes(
+        self, video_features: dict[str, Any], video_path: str
+    ) -> tuple[list[str], list[float], str]:
+        """
+        Analyze video scenes for pacing decisions using PySceneDetect.
+
+        Args:
+            video_features: Extracted video features (tags etc)
+            video_path: Path to video file
+
+        Returns:
+            Tuple of (dominant_scenes, scene_transitions, mood_consistency)
+        """
         try:
             # Extract dominant scenes
             tags = video_features.get("tags", ["unknown"])
             dominant_scenes = tags[:3] if isinstance(tags, list) else ["unknown"]
 
-            # TODO: Implement actual scene transition detection
-            # For now, use placeholder logic
+            # Initialize scene transitions list
             scene_transitions = []
-            mood_consistency = "consistent"
 
-            # Determine mood consistency based on scene variety
-            if len(set(dominant_scenes)) == 1:
+            # Determine threshold based on sensitivity (inverse relationship)
+            # Default ContentDetector threshold is 30.0
+            # sensitivity 1.0 (high) -> threshold 10.0 (detects small changes)
+            # sensitivity 0.0 (low) -> threshold 70.0 (detects only big changes)
+            threshold = 60.0 * (1.0 - self.config.scene_change_sensitivity) + 10.0
+
+            try:
+                # Setup scene detection
+                video = open_video(video_path)
+                scene_manager = SceneManager()
+                scene_manager.add_detector(ContentDetector(threshold=threshold))
+
+                # Detect scenes
+                scene_manager.detect_scenes(video=video)
+                scene_list = scene_manager.get_scene_list()
+
+                # Extract cut points (end of previous scene is start of next)
+                # We skip the first scene start (0.0) if it's the beginning
+                for i, (start, end) in enumerate(scene_list):
+                    start_sec = start.get_seconds()
+                    if start_sec > 0.1:  # Filter out 0.0
+                        scene_transitions.append(start_sec)
+
+                logger.info(
+                    f"Detected {len(scene_transitions)} scene transitions "
+                    f"(threshold={threshold:.1f})"
+                )
+
+            except Exception as e:
+                logger.warning(f"Actual scene detection failed, falling back to basic analysis: {e}")
+                # Fallback to placeholder or keep empty
+
+            # Determine mood consistency based on scene variety and cut frequency
+            # Calculate cuts per minute
+            cuts_per_minute = 0
+            if scene_transitions:
+                duration = scene_transitions[-1] if scene_transitions else 1.0
+                if duration > 0:
+                    cuts_per_minute = len(scene_transitions) / (duration / 60.0)
+
+            if len(set(dominant_scenes)) == 1 and cuts_per_minute < 5:
                 mood_consistency = "consistent"
-            elif len(set(dominant_scenes)) <= 2:
+            elif len(set(dominant_scenes)) <= 2 and cuts_per_minute < 15:
                 mood_consistency = "dynamic"
             else:
                 mood_consistency = "chaotic"
