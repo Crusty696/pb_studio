@@ -37,6 +37,7 @@ Usage:
 
 import atexit
 import hashlib
+import json
 import logging
 import os
 import shutil
@@ -51,29 +52,9 @@ from pathlib import Path
 
 import ffmpeg
 
-# WINDOWS FIX: Permanently patch subprocess.Popen to hide console windows
-# This is required for multi-threaded ffmpeg calls to work without popup windows
-# The patch is GLOBAL and PERMANENT to avoid race conditions with threads
-if sys.platform == "win32":
-    import subprocess as _subprocess_module
-
-    _original_popen = _subprocess_module.Popen
-    _popen_patched = False
-    _popen_lock = threading.Lock()  # Thread-safe patch initialization
-
-    class _HiddenPopen(_original_popen):
-        """Popen subclass that hides console windows on Windows."""
-
-        def __init__(self, *args, **kwargs):
-            if "creationflags" not in kwargs:
-                kwargs["creationflags"] = _subprocess_module.CREATE_NO_WINDOW
-            super().__init__(*args, **kwargs)
-
-    # Apply patch globally ONCE with thread-safe lock
-    with _popen_lock:
-        if not _popen_patched:
-            _subprocess_module.Popen = _HiddenPopen
-            _popen_patched = True
+# REFACTORED: Removed global monkey patching of subprocess.Popen.
+# Instead, we rely on utils.subprocess_utils.run_hidden and pass
+# creationflags explicitly where needed (e.g. in _encode_segment_with_ffmpeg).
 from pydantic import BaseModel, field_validator
 
 # P4-FIX: Type Aliases for Callback Signatures (improved code clarity)
@@ -1101,30 +1082,26 @@ class VideoRenderer:
                     continue
 
                 # Extract range
-                (
-                    ffmpeg.input(str(validated_clip), ss=start, t=duration)
-                    .output(
-                        str(validated_temp),
-                        vcodec="copy",  # Use copy codec for speed
-                        acodec="copy",
-                        avoid_negative_ts="make_zero",
-                    )
-                    .overwrite_output()
-                    .run(
-                        capture_stdout=True,
-                        capture_stderr=True,
-                        quiet=True,
-                        cmd=str(get_ffmpeg_path()),
-                    )
-                )
+                stream = ffmpeg.input(str(validated_clip), ss=start, t=duration)
+                stream = stream.output(
+                    str(validated_temp),
+                    vcodec="copy",  # Use copy codec for speed
+                    acodec="copy",
+                    avoid_negative_ts="make_zero",
+                ).overwrite_output()
+
+                # REFACTOR: Use compile() + run_hidden() instead of run() to avoid monkey patching
+                cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                run_hidden(cmd_args, capture_output=True, check=True)
 
                 # Map original range to temp file
                 range_cache[(start, end)] = temp_path
 
-            except ffmpeg.Error as e:
+            except (ffmpeg.Error, subprocess.CalledProcessError) as e:
+                error_msg = e.stderr.decode() if hasattr(e, "stderr") and e.stderr else str(e)
                 logger.error(
                     f"Failed to preprocess {clip_path.name} range "
-                    f"{start:.2f}-{end:.2f}s: {e.stderr.decode() if e.stderr else str(e)}"
+                    f"{start:.2f}-{end:.2f}s: {error_msg}"
                 )
                 # FIX #14: Cleanup temp-Datei bei Fehler
                 try:
@@ -1253,7 +1230,21 @@ class VideoRenderer:
                 logger.error(f"FFmpeg path validation failed: {e}")
                 return 0.0
 
-            probe = ffmpeg.probe(str(validated_clip), cmd=str(get_ffprobe_path()))
+            # REFACTOR: Use run_hidden instead of ffmpeg.probe to avoid console windows
+            cmd = [
+                str(get_ffprobe_path()),
+                "-show_format",
+                "-show_streams",
+                "-of", "json",
+                str(validated_clip)
+            ]
+
+            result = run_hidden(cmd, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_PROBE)
+            if result.returncode != 0:
+                logger.error(f"FFprobe failed: {result.stderr}")
+                return 0.0
+
+            probe = json.loads(result.stdout)
 
             # Validate probe structure before accessing
             if "format" not in probe or "duration" not in probe["format"]:
@@ -1376,7 +1367,18 @@ class VideoRenderer:
     def _has_audio_stream(self, clip_path: Path) -> bool:
         """Check if video file has an audio stream."""
         try:
-            probe = ffmpeg.probe(str(clip_path), cmd=str(get_ffprobe_path()))
+            # REFACTOR: Use run_hidden instead of ffmpeg.probe
+            cmd = [
+                str(get_ffprobe_path()),
+                "-show_streams",
+                "-of", "json",
+                str(clip_path)
+            ]
+            result = run_hidden(cmd, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_PROBE)
+            if result.returncode != 0:
+                return False
+
+            probe = json.loads(result.stdout)
             for stream in probe.get("streams", []):
                 if stream.get("codec_type") == "audio":
                     return True
@@ -1412,12 +1414,11 @@ class VideoRenderer:
         try:
             if has_audio:
                 # Normal extraction with existing audio
-                (
-                    ffmpeg.input(str(clip_path), ss=clip_start, t=duration, hwaccel="auto")
-                    .output(str(output_path), **output_options)
-                    .overwrite_output()
-                    .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
-                )
+                stream = ffmpeg.input(str(clip_path), ss=clip_start, t=duration, hwaccel="auto")
+                stream = stream.output(str(output_path), **output_options).overwrite_output()
+
+                cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                run_hidden(cmd_args, capture_output=True, check=True)
             else:
                 # BUGFIX: Add silent audio track for videos without audio
                 # This ensures consistent stream structure for concat demuxer
@@ -1429,17 +1430,16 @@ class VideoRenderer:
                 silent_audio = ffmpeg.input(
                     "anullsrc=channel_layout=stereo:sample_rate=44100", f="lavfi", t=duration
                 )
-                (
-                    ffmpeg.output(video_input, silent_audio, str(output_path), **output_options)
-                    .overwrite_output()
-                    .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
-                )
+                stream = ffmpeg.output(video_input, silent_audio, str(output_path), **output_options).overwrite_output()
+
+                cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                run_hidden(cmd_args, capture_output=True, check=True)
 
             logger.debug(f"Segment {index} extracted successfully")
             return output_path
 
-        except ffmpeg.Error as e:
-            error_msg = e.stderr.decode() if e.stderr else str(e)
+        except (ffmpeg.Error, subprocess.CalledProcessError) as e:
+            error_msg = e.stderr.decode() if hasattr(e, "stderr") and e.stderr else str(e)
 
             # Check for NVENC driver version error and fallback to CPU
             if use_gpu and ("nvenc API version" in error_msg or "h264_nvenc" in error_msg):
@@ -1450,12 +1450,11 @@ class VideoRenderer:
                 output_options = self._get_encoder_options(False)
 
                 if has_audio:
-                    (
-                        ffmpeg.input(str(clip_path), ss=clip_start, t=duration, hwaccel="auto")
-                        .output(str(output_path), **output_options)
-                        .overwrite_output()
-                        .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
-                    )
+                    stream = ffmpeg.input(str(clip_path), ss=clip_start, t=duration, hwaccel="auto")
+                    stream = stream.output(str(output_path), **output_options).overwrite_output()
+
+                    cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                    run_hidden(cmd_args, capture_output=True, check=True)
                 else:
                     video_input = ffmpeg.input(
                         str(clip_path), ss=clip_start, t=duration, hwaccel="auto"
@@ -1463,11 +1462,10 @@ class VideoRenderer:
                     silent_audio = ffmpeg.input(
                         "anullsrc=channel_layout=stereo:sample_rate=44100", f="lavfi", t=duration
                     )
-                    (
-                        ffmpeg.output(video_input, silent_audio, str(output_path), **output_options)
-                        .overwrite_output()
-                        .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
-                    )
+                    stream = ffmpeg.output(video_input, silent_audio, str(output_path), **output_options).overwrite_output()
+
+                    cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                    run_hidden(cmd_args, capture_output=True, check=True)
 
                 logger.debug(f"Segment {index} extracted successfully (CPU fallback)")
                 return output_path
@@ -1554,25 +1552,24 @@ class VideoRenderer:
 
             # Generate black video
             logger.debug(f"Creating black segment {index} with duration {duration}s")
-            (
-                ffmpeg.input(
-                    f"color=c=black:s={self.settings.resolution[0]}x{self.settings.resolution[1]}:d={duration}",
-                    f="lavfi",
-                )
-                .output(
-                    str(output_path),
-                    vcodec=self.settings.video_codec,
-                    preset="ultrafast",
-                    r=self.settings.fps,
-                    # BUGFIX #2: Add -loglevel quiet for consistent quiet behavior
-                    # Prevents ffmpeg warnings from polluting logs
-                    **{"loglevel": "quiet"},
-                )
-                .overwrite_output()
-                .run(
-                    capture_stdout=True, capture_stderr=True, quiet=True, cmd=str(get_ffmpeg_path())
-                )
+
+            stream = ffmpeg.input(
+                f"color=c=black:s={self.settings.resolution[0]}x{self.settings.resolution[1]}:d={duration}",
+                f="lavfi",
             )
+            stream = stream.output(
+                str(output_path),
+                vcodec=self.settings.video_codec,
+                preset="ultrafast",
+                r=self.settings.fps,
+                # BUGFIX #2: Add -loglevel quiet for consistent quiet behavior
+                # Prevents ffmpeg warnings from polluting logs
+                **{"loglevel": "quiet"},
+            ).overwrite_output()
+
+            # REFACTOR: Use compile() + run_hidden()
+            cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+            run_hidden(cmd_args, capture_output=True, check=True)
             logger.debug(f"Black segment {index} created")
 
             return output_path
@@ -1633,25 +1630,20 @@ class VideoRenderer:
 
             # Versuche zuerst schnelle concat demuxer Methode
             try:
-                (
-                    ffmpeg.input(str(concat_file), format="concat", safe=0)
-                    .output(str(output_path), c="copy", **{"loglevel": "quiet"})
-                    .overwrite_output()
-                    .run(
-                        capture_stdout=True,
-                        capture_stderr=True,
-                        quiet=True,
-                        cmd=str(get_ffmpeg_path()),
-                    )
-                )
+                stream = ffmpeg.input(str(concat_file), format="concat", safe=0)
+                stream = stream.output(str(output_path), c="copy", **{"loglevel": "quiet"}).overwrite_output()
+
+                cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                run_hidden(cmd_args, capture_output=True, check=True)
+
                 logger.debug("Concatenation complete (fast demuxer method)")
                 return True
 
-            except ffmpeg.Error as demux_error:
+            except (ffmpeg.Error, subprocess.CalledProcessError) as demux_error:
+                error_msg = demux_error.stderr.decode()[:200] if hasattr(demux_error, "stderr") and demux_error.stderr else "unknown"
                 # Falls demuxer fehlschlägt, verwende filter_complex
                 logger.warning(
-                    f"Concat demuxer fehlgeschlagen, verwende filter_complex: "
-                    f"{demux_error.stderr.decode()[:200] if demux_error.stderr else 'unknown'}"
+                    f"Concat demuxer fehlgeschlagen, verwende filter_complex: {error_msg}"
                 )
 
                 # Baue filter_complex concat
@@ -1662,30 +1654,26 @@ class VideoRenderer:
                 video_out = joined[0]
                 audio_out = joined[1]
 
-                (
-                    ffmpeg.output(
-                        video_out,
-                        audio_out,
-                        str(output_path),
-                        vcodec="libx264",
-                        acodec="aac",
-                        preset="faster",
-                        crf=23,
-                        **{"loglevel": "quiet"},
-                    )
-                    .overwrite_output()
-                    .run(
-                        capture_stdout=True,
-                        capture_stderr=True,
-                        quiet=True,
-                        cmd=str(get_ffmpeg_path()),
-                    )
-                )
+                stream = ffmpeg.output(
+                    video_out,
+                    audio_out,
+                    str(output_path),
+                    vcodec="libx264",
+                    acodec="aac",
+                    preset="faster",
+                    crf=23,
+                    **{"loglevel": "quiet"},
+                ).overwrite_output()
+
+                cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+                run_hidden(cmd_args, capture_output=True, check=True)
+
                 logger.debug("Concatenation complete (filter_complex method)")
                 return True
 
-        except ffmpeg.Error as e:
-            logger.error(f"FFmpeg error concatenating: {e.stderr.decode() if e.stderr else str(e)}")
+        except (ffmpeg.Error, subprocess.CalledProcessError) as e:
+            error_msg = e.stderr.decode() if hasattr(e, "stderr") and e.stderr else str(e)
+            logger.error(f"FFmpeg error concatenating: {error_msg}")
             return False
         except Exception as e:
             logger.error(f"Error concatenating segments: {e}")
@@ -1717,11 +1705,21 @@ class VideoRenderer:
                 return False
 
             # Get video duration
-            probe = ffmpeg.probe(str(validated_video), cmd=str(get_ffprobe_path()))
+            cmd_vid = [str(get_ffprobe_path()), "-show_format", "-of", "json", str(validated_video)]
+            res_vid = run_hidden(cmd_vid, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_PROBE)
+            if res_vid.returncode != 0:
+                logger.error(f"Failed to probe video: {res_vid.stderr}")
+                return False
+            probe = json.loads(res_vid.stdout)
             video_duration = float(probe["format"]["duration"])
 
             # Detect audio codec to determine if copy is possible
-            audio_probe = ffmpeg.probe(str(validated_audio), cmd=str(get_ffprobe_path()))
+            cmd_aud = [str(get_ffprobe_path()), "-show_streams", "-of", "json", str(validated_audio)]
+            res_aud = run_hidden(cmd_aud, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_PROBE)
+            if res_aud.returncode != 0:
+                logger.error(f"Failed to probe audio: {res_aud.stderr}")
+                return False
+            audio_probe = json.loads(res_aud.stdout)
 
             # BUG FIX: Validate audio stream exists before accessing
             if not audio_probe.get("streams") or len(audio_probe["streams"]) == 0:
@@ -1757,17 +1755,19 @@ class VideoRenderer:
             if audio_bitrate:
                 output_args["audio_bitrate"] = audio_bitrate
 
-            (
-                ffmpeg.output(video_input, audio_input, str(validated_output), **output_args)
-                .overwrite_output()
-                .run(capture_stdout=True, capture_stderr=True, cmd=str(get_ffmpeg_path()))
-            )
+            stream = ffmpeg.output(video_input, audio_input, str(validated_output), **output_args).overwrite_output()
+
+            # REFACTOR: Use compile() + run_hidden()
+            cmd_args = ffmpeg.compile(stream, cmd=str(get_ffmpeg_path()), overwrite_output=True)
+            run_hidden(cmd_args, capture_output=True, check=True)
+
             logger.debug("Audio merge complete")
 
             return True
 
-        except ffmpeg.Error as e:
-            logger.error(f"FFmpeg error merging audio: {e.stderr.decode()}")
+        except (ffmpeg.Error, subprocess.CalledProcessError) as e:
+            error_msg = e.stderr.decode() if hasattr(e, "stderr") and e.stderr else str(e)
+            logger.error(f"FFmpeg error merging audio: {error_msg}")
             return False
         except Exception as e:
             logger.error(f"Error merging audio: {e}")
