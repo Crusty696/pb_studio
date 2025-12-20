@@ -6,6 +6,7 @@ Automatische Erstellung von Standardkonfiguration.
 """
 
 import configparser
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -177,11 +178,15 @@ class Config:
 
 # Globale Konfigurationsinstanz
 _config = None
+_config_lock = threading.Lock()
 
 
 def get_config(config_file: str = "config.ini") -> Config:
     """
     Gibt die globale Konfigurationsinstanz zurück.
+
+    THREAD-SAFE FIX: Uses Double-Checked Locking to prevent race conditions
+    during initialization.
 
     Args:
         config_file: Pfad zur Konfigurationsdatei
@@ -191,7 +196,10 @@ def get_config(config_file: str = "config.ini") -> Config:
     """
     global _config
     if _config is None:
-        _config = Config(config_file)
+        with _config_lock:
+            # Double-check inside lock
+            if _config is None:
+                _config = Config(config_file)
     return _config
 
 

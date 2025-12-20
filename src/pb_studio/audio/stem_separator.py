@@ -211,36 +211,58 @@ class DemucsSeparator:
         self, input_path: Path, output_dir: Path, target_folder: Path, timeout_seconds: int
     ) -> dict[str, str]:
         device_str = self.device if isinstance(self.device, str) else "cpu"
-        cmd = [
-            "demucs",
-            "-n",
-            self.model_name,
-            "--device",
-            device_str,
-            "-o",
-            str(output_dir),
-            str(input_path),
-        ]
 
-        logger.info(f"Executing Demucs: {' '.join(cmd)}")
-        try:
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout_seconds, check=False
-            )
-            if result.returncode != 0:
-                logger.error(f"Demucs stderr: {result.stderr}")
-                raise RuntimeError(f"Demucs exited with code {result.returncode}")
-        except subprocess.TimeoutExpired as e:
-            if hasattr(e, "process") and e.process:
-                self._cleanup_on_timeout(e.process)
-            raise TimeoutError(f"Stem separation timed out after {timeout_seconds}s")
+        # Use a temporary directory for atomic writes
+        with tempfile.TemporaryDirectory(prefix="demucs_tmp_") as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            cmd = [
+                "demucs",
+                "-n",
+                self.model_name,
+                "--device",
+                device_str,
+                "-o",
+                str(tmp_path),
+                str(input_path),
+            ]
 
-        results = {}
-        for stem in ["drums", "bass", "other", "vocals"]:
-            stem_path = target_folder / f"{stem}.wav"
-            if stem_path.exists():
-                results[stem] = str(stem_path)
-        return results
+            logger.info(f"Executing Demucs (temp dir): {' '.join(cmd)}")
+            try:
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=timeout_seconds, check=False
+                )
+                if result.returncode != 0:
+                    logger.error(f"Demucs stderr: {result.stderr}")
+                    raise RuntimeError(f"Demucs exited with code {result.returncode}")
+            except subprocess.TimeoutExpired as e:
+                if hasattr(e, "process") and e.process:
+                    self._cleanup_on_timeout(e.process)
+                raise TimeoutError(f"Stem separation timed out after {timeout_seconds}s")
+
+            # Move results to final destination atomically
+            # Demucs structure: tmp_dir/model_name/input_stem/...
+            tmp_target = tmp_path / self.model_name / input_path.stem
+
+            if not tmp_target.exists():
+                 logger.error(f"Demucs output not found at {tmp_target}")
+                 return {}
+
+            # Ensure final output dir exists
+            target_folder.parent.mkdir(parents=True, exist_ok=True)
+
+            # Copy stems
+            results = {}
+            for stem in ["drums", "bass", "other", "vocals"]:
+                src_stem = tmp_target / f"{stem}.wav"
+                dst_stem = target_folder / f"{stem}.wav"
+
+                if src_stem.exists():
+                    # Move/Copy logic
+                    dst_stem.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src_stem, dst_stem)
+                    results[stem] = str(dst_stem)
+
+            return results
 
     def _separate_with_directml(
         self, input_path: Path, output_dir: Path, target_folder: Path, timeout_seconds: int
