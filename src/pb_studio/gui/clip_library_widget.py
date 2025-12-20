@@ -49,6 +49,7 @@ from ..utils.logger import get_logger
 from ..utils.path_utils import resolve_relative_path, to_relative_path
 from ..video.thumbnail_generator import ThumbnailGenerator
 from ..video.video_analyzer import VideoAnalyzer
+from ..utils.clip_data_loader import ClipDataLoader
 from .clip_filter_widget import ClipFilterWidget, apply_filters_to_clips
 
 # UI Layout Konstanten
@@ -621,119 +622,11 @@ class ClipLibraryWidget(QWidget):
             self.clips = []
             unanalyzed_count = 0
 
+            # PERF-OPTIMIZATION: Use ClipDataLoader for lazy loading
             for clip_db in db_clips:
-                # Jetzt können wir direkt auf die Relationships zugreifen (OHNE Query!)
-                # Dank Eager Loading sind alle Daten bereits geladen
-                analysis_data = {}
-                is_analyzed = False
-
-                # Check analysis status (direkter Zugriff auf Relationship)
-                if clip_db.analysis_status:
-                    is_analyzed = (
-                        clip_db.analysis_status.is_fully_analyzed()
-                        if hasattr(clip_db.analysis_status, "is_fully_analyzed")
-                        else False
-                    )
-
-                # Load color analysis (direkter Zugriff)
-                if clip_db.colors:
-                    analysis_data["color"] = {
-                        "temperature": clip_db.colors.temperature,
-                        "temperature_score": clip_db.colors.temperature_score,
-                        "brightness": clip_db.colors.brightness,
-                        "brightness_value": clip_db.colors.brightness_value,
-                        "dominant_colors": clip_db.colors.get_dominant_colors(),
-                        "color_moods": clip_db.colors.get_color_moods(),
-                        "brightness_dynamics": clip_db.colors.brightness_dynamics,
-                        "color_dynamics": clip_db.colors.color_dynamics,
-                        "temporal_rhythm": clip_db.colors.temporal_rhythm,
-                    }
-
-                # Load motion analysis (direkter Zugriff)
-                if clip_db.motion:
-                    analysis_data["motion"] = {
-                        "motion_type": clip_db.motion.motion_type,
-                        "motion_score": clip_db.motion.motion_score,
-                        "motion_rhythm": clip_db.motion.motion_rhythm,
-                        "camera_motion": clip_db.motion.camera_motion,
-                        "camera_magnitude": clip_db.motion.camera_magnitude,
-                    }
-
-                # Load scene analysis (direkter Zugriff)
-                if clip_db.scene_type:
-                    analysis_data["scene"] = {
-                        "scene_types": clip_db.scene_type.get_scene_types(),
-                        "has_face": clip_db.scene_type.has_face,
-                        "face_count": clip_db.scene_type.face_count,
-                        "edge_density": clip_db.scene_type.edge_density,
-                        "texture_variance": clip_db.scene_type.texture_variance,
-                        "depth_of_field": clip_db.scene_type.depth_of_field,
-                    }
-
-                # Load mood analysis (direkter Zugriff)
-                if clip_db.mood:
-                    analysis_data["mood"] = {
-                        "moods": clip_db.mood.get_moods(),
-                        "mood_scores": json.loads(clip_db.mood.mood_scores)
-                        if clip_db.mood.mood_scores
-                        else {},
-                        "brightness": clip_db.mood.brightness,
-                        "saturation": clip_db.mood.saturation,
-                        "contrast": clip_db.mood.contrast,
-                        "energy": clip_db.mood.energy,
-                        "warm_ratio": clip_db.mood.warm_ratio,
-                        "cool_ratio": clip_db.mood.cool_ratio,
-                    }
-
-                # Load style analysis (direkter Zugriff)
-                if clip_db.style:
-                    analysis_data["style"] = {
-                        "styles": clip_db.style.get_styles(),
-                        "sharpness": clip_db.style.sharpness,
-                        "noise_level": clip_db.style.noise_level,
-                        "vignette_score": clip_db.style.vignette_score,
-                        "dynamic_range": clip_db.style.dynamic_range,
-                        "saturation_mean": clip_db.style.saturation_mean,
-                        "saturation_std": clip_db.style.saturation_std,
-                        "mean_brightness": clip_db.style.mean_brightness,
-                    }
-
-                # Load object detection (direkter Zugriff)
-                if clip_db.objects:
-                    analysis_data["objects"] = {
-                        "detected_objects": clip_db.objects.get_detected_objects(),
-                        "object_counts": json.loads(clip_db.objects.object_counts)
-                        if clip_db.objects.object_counts
-                        else {},
-                        "confidence_scores": json.loads(clip_db.objects.confidence_scores)
-                        if clip_db.objects.confidence_scores
-                        else {},
-                        "content_tags": clip_db.objects.get_content_tags(),
-                        "line_count": clip_db.objects.line_count,
-                        "green_ratio": clip_db.objects.green_ratio,
-                        "sky_ratio": clip_db.objects.sky_ratio,
-                        "symmetry": clip_db.objects.symmetry,
-                    }
-
-                # Check if clip needs analysis
-                needs_analysis = not analysis_data or getattr(clip_db, "needs_reanalysis", True)
-                if needs_analysis:
+                clip_data = ClipDataLoader.db_to_dict(clip_db, full_details=False)
+                if clip_data.get("_unanalyzed_count", 0) > 0:
                     unanalyzed_count += 1
-
-                clip_data = {
-                    "id": clip_db.id,
-                    "name": clip_db.name,
-                    "file_path": clip_db.file_path,
-                    "duration": clip_db.duration or 0.0,
-                    "width": clip_db.width or 0,
-                    "height": clip_db.height or 0,
-                    "fps": clip_db.fps or 30.0,
-                    "date_added": str(clip_db.created_at) if clip_db.created_at else "",
-                    "thumbnail_path": clip_db.thumbnail_path,
-                    "analysis": analysis_data,
-                    "is_analyzed": is_analyzed and bool(analysis_data),
-                    "content_fingerprint": getattr(clip_db, "content_fingerprint", None),
-                }
                 self.clips.append(clip_data)
 
             # Update filter widget
@@ -963,13 +856,21 @@ class ClipLibraryWidget(QWidget):
     def _on_clip_selected(self, clip_id: int):
         """Handle clip selection."""
         logger.info(f"Clip selected: {clip_id}")
-        self.clip_selected.emit(clip_id)
 
-        # Find and display clip info
+        # Ensure that the selected clip has full details parsed
+        # This is important if details are lazy-loaded
+        selected_clip = None
         for clip in self.clips:
             if clip.get("id") == clip_id:
-                logger.debug(f"Selected clip: {clip.get('name')}")
+                selected_clip = clip
                 break
+
+        if selected_clip:
+            # Parse full details on demand if not already present
+            ClipDataLoader.ensure_details(selected_clip)
+            logger.debug(f"Selected clip: {selected_clip.get('name')}")
+
+        self.clip_selected.emit(clip_id)
 
     def _on_clip_delete_requested(self, clip_id: int):
         """Handle clip deletion request."""
