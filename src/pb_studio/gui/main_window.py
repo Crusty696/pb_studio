@@ -1125,14 +1125,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"PB_studio - {project.name}")
         self.update_status(f"Projekt '{project.name}' geladen")
 
-        # Load Audio-Tracks and Video-Clips from Database
-        from ..database.crud import get_audio_tracks_by_project, get_video_clips_by_project
+        # Load Audio-Tracks from Database
+        from ..database.crud import get_audio_tracks_by_project
 
         audio_tracks = get_audio_tracks_by_project(project.id)
-        video_clips = get_video_clips_by_project(project.id)
 
         logger.info(
-            f"Loaded {len(audio_tracks)} audio tracks and {len(video_clips)} video clips from database"
+            f"Loaded {len(audio_tracks)} audio tracks from database"
         )
 
         # Load first audio track into timeline if available
@@ -1145,10 +1144,10 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 logger.error(f"Failed to load audio track: {e}")
 
-        # Refresh video clips in ClipLibrary (loads from DB automatically)
-        if video_clips and self.clip_library_widget:
-            self.clip_library_widget.refresh_clips()
-            logger.info(f"Refreshed {len(video_clips)} clips in ClipLibrary")
+        # Set project ID in ClipLibrary and load clips
+        if self.clip_library_widget:
+            self.clip_library_widget.set_project_id(project.id)
+            logger.info(f"Set project ID {project.id} in ClipLibrary")
 
         logger.info(f"Projekt geladen: {project.name} (ID: {project.id})")
 

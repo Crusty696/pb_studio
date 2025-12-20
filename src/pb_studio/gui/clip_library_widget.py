@@ -329,7 +329,7 @@ class ClipLibraryWidget(QWidget):
     clip_selected = pyqtSignal(int)  # clip_id
     clip_imported = pyqtSignal(int)  # clip_id
     analyze_requested = pyqtSignal(list)  # List[clip_ids]
-    query_clips_requested = pyqtSignal()  # Phase 2: Request clips from worker
+    query_clips_requested = pyqtSignal(dict)  # Phase 2: Request clips from worker (with filters)
     videos_imported = pyqtSignal(list)  # List[video_paths] - emitted after drag-drop import
 
     def __init__(self, parent=None):
@@ -340,6 +340,7 @@ class ClipLibraryWidget(QWidget):
         self.setAcceptDrops(True)
 
         # State
+        self.project_id: int | None = None
         self.clips: list[dict[str, Any]] = []
         self.filtered_clips: list[dict[str, Any]] = []
         self.current_view_mode: str = "grid"  # grid or list
@@ -503,6 +504,21 @@ class ClipLibraryWidget(QWidget):
                 self.session = None
             raise
 
+    def set_project_id(self, project_id: int):
+        """
+        Set the current project ID and reload clips.
+
+        Args:
+            project_id: Project ID
+        """
+        if self.project_id != project_id:
+            self.project_id = project_id
+            self.load_clips_async()
+
+    def refresh_clips(self):
+        """Alias for load_clips_async, used by MainWindow."""
+        self.load_clips_async()
+
     def load_clips_async(self):
         """
         Load clips asynchronously using background thread (Phase 2).
@@ -510,7 +526,7 @@ class ClipLibraryWidget(QWidget):
         Shows loading indicator and requests clips from DatabaseWorker.
         UI remains responsive during query execution.
         """
-        logger.info("Starting async clip loading...")
+        logger.info(f"Starting async clip loading for project {self.project_id}...")
 
         # Show loading indicator
         if self.loading_label:
@@ -521,10 +537,15 @@ class ClipLibraryWidget(QWidget):
         if self.clip_container:
             self.clip_container.setVisible(False)
 
-        # Request clips from worker (via Signal/Slot for thread-safe communication)
-        self.query_clips_requested.emit()
+        # Prepare filters
+        filters = {}
+        if self.project_id is not None:
+            filters["project_id"] = self.project_id
 
-        logger.debug("Async clip loading requested from worker thread")
+        # Request clips from worker (via Signal/Slot for thread-safe communication)
+        self.query_clips_requested.emit(filters)
+
+        logger.debug(f"Async clip loading requested with filters: {filters}")
 
     def _on_clips_loaded(self, clips_data: list[dict[str, Any]]):
         """
