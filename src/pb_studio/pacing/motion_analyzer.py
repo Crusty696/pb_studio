@@ -16,7 +16,7 @@ Features:
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import cv2
@@ -38,6 +38,8 @@ class MotionAnalysisResult:
         frame_count: Anzahl Frames im Video
         duration: Video-Dauer in Sekunden
         fps: Frames per Second
+        motion_series: Zeitreihe der Motion-Scores (List of floats)
+        sample_times: Zeitstempel der Motion-Scores (List of floats)
     """
 
     clip_path: str
@@ -45,6 +47,8 @@ class MotionAnalysisResult:
     frame_count: int
     duration: float
     fps: float
+    motion_series: list[float] = field(default_factory=list)
+    sample_times: list[float] = field(default_factory=list)
 
 
 class MotionAnalyzer:
@@ -145,6 +149,7 @@ class MotionAnalyzer:
 
             # 3. Frames samplen + Optical Flow
             motion_scores = []
+            sample_times = []
             prev_gray = None
 
             # Sample-Indices mit frame_skip Optimierung
@@ -175,7 +180,14 @@ class MotionAnalyzer:
                 # Optical Flow berechnen (ab 2. Frame)
                 if prev_gray is not None:
                     flow_score = self._calculate_optical_flow(prev_gray, gray)
-                    motion_scores.append(flow_score)
+
+                    # Normalize frame score
+                    normalized_score = min(1.0, flow_score / self.normalize_factor)
+                    motion_scores.append(normalized_score)
+
+                    # Calculate timestamp for this frame
+                    timestamp = frame_idx / fps if fps > 0 else 0.0
+                    sample_times.append(timestamp)
 
                 prev_gray = gray
 
@@ -185,7 +197,7 @@ class MotionAnalyzer:
         if motion_scores:
             avg_motion = np.mean(motion_scores)
             # Normalisierung: typischer Flow-Wert ist 0-10, wir wollen 0-1
-            normalized_motion = min(1.0, avg_motion / self.normalize_factor)
+            normalized_motion = min(1.0, avg_motion) # already normalized per frame
         else:
             logger.warning(f"Keine Motion-Scores berechnet für: {clip_path}")
             normalized_motion = 0.0
@@ -202,6 +214,8 @@ class MotionAnalyzer:
             frame_count=frame_count,
             duration=duration,
             fps=fps,
+            motion_series=motion_scores,
+            sample_times=sample_times,
         )
 
         # 6. Cache speichern
@@ -259,6 +273,11 @@ class MotionAnalyzer:
         data = self.cache_manager.load(clip_path)
         if data:
             try:
+                # Provide defaults for fields that might be missing in old cache
+                if "motion_series" not in data:
+                    data["motion_series"] = []
+                if "sample_times" not in data:
+                    data["sample_times"] = []
                 return MotionAnalysisResult(**data)
             except Exception as e:
                 logger.warning(f"Cache-Load-Fehler für {clip_path}: {e}")
@@ -347,7 +366,13 @@ class MotionAnalyzer:
                     logger.error(f"Fehler bei Batch-Analyse von {clip_path}: {e}", exc_info=True)
                     # Fallback: Erstelle Ergebnis mit motion_score=0.0
                     results[index] = MotionAnalysisResult(
-                        clip_path=clip_path, motion_score=0.0, frame_count=0, duration=0.0, fps=0.0
+                        clip_path=clip_path,
+                        motion_score=0.0,
+                        frame_count=0,
+                        duration=0.0,
+                        fps=0.0,
+                        motion_series=[],
+                        sample_times=[]
                     )
                     completed += 1
 

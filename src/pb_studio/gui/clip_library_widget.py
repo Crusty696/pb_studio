@@ -49,6 +49,7 @@ from ..utils.logger import get_logger
 from ..utils.path_utils import resolve_relative_path, to_relative_path
 from ..video.thumbnail_generator import ThumbnailGenerator
 from ..video.video_analyzer import VideoAnalyzer
+from ..utils.clip_data_loader import ClipDataLoader
 from .clip_filter_widget import ClipFilterWidget, apply_filters_to_clips
 
 # UI Layout Konstanten
@@ -329,7 +330,7 @@ class ClipLibraryWidget(QWidget):
     clip_selected = pyqtSignal(int)  # clip_id
     clip_imported = pyqtSignal(int)  # clip_id
     analyze_requested = pyqtSignal(list)  # List[clip_ids]
-    query_clips_requested = pyqtSignal()  # Phase 2: Request clips from worker
+    query_clips_requested = pyqtSignal(dict)  # Phase 2: Request clips from worker (with filters)
     videos_imported = pyqtSignal(list)  # List[video_paths] - emitted after drag-drop import
 
     def __init__(self, parent=None):
@@ -340,6 +341,7 @@ class ClipLibraryWidget(QWidget):
         self.setAcceptDrops(True)
 
         # State
+        self.project_id: int | None = None
         self.clips: list[dict[str, Any]] = []
         self.filtered_clips: list[dict[str, Any]] = []
         self.current_view_mode: str = "grid"  # grid or list
@@ -406,6 +408,8 @@ class ClipLibraryWidget(QWidget):
 
         # Import button
         import_button = QPushButton("+ Import Clips")
+        import_button.setToolTip("Import video files from disk")
+        import_button.setAccessibleName("Import Clips Button")
         import_button.clicked.connect(self._import_clips)
         import_button.setMaximumWidth(120)
         header_layout.addWidget(import_button)
@@ -503,6 +507,21 @@ class ClipLibraryWidget(QWidget):
                 self.session = None
             raise
 
+    def set_project_id(self, project_id: int):
+        """
+        Set the current project ID and reload clips.
+
+        Args:
+            project_id: Project ID
+        """
+        if self.project_id != project_id:
+            self.project_id = project_id
+            self.load_clips_async()
+
+    def refresh_clips(self):
+        """Alias for load_clips_async, used by MainWindow."""
+        self.load_clips_async()
+
     def load_clips_async(self):
         """
         Load clips asynchronously using background thread (Phase 2).
@@ -510,7 +529,7 @@ class ClipLibraryWidget(QWidget):
         Shows loading indicator and requests clips from DatabaseWorker.
         UI remains responsive during query execution.
         """
-        logger.info("Starting async clip loading...")
+        logger.info(f"Starting async clip loading for project {self.project_id}...")
 
         # Show loading indicator
         if self.loading_label:
@@ -521,10 +540,15 @@ class ClipLibraryWidget(QWidget):
         if self.clip_container:
             self.clip_container.setVisible(False)
 
-        # Request clips from worker (via Signal/Slot for thread-safe communication)
-        self.query_clips_requested.emit()
+        # Prepare filters
+        filters = {}
+        if self.project_id is not None:
+            filters["project_id"] = self.project_id
 
-        logger.debug("Async clip loading requested from worker thread")
+        # Request clips from worker (via Signal/Slot for thread-safe communication)
+        self.query_clips_requested.emit(filters)
+
+        logger.debug(f"Async clip loading requested with filters: {filters}")
 
     def _on_clips_loaded(self, clips_data: list[dict[str, Any]]):
         """
@@ -621,119 +645,11 @@ class ClipLibraryWidget(QWidget):
             self.clips = []
             unanalyzed_count = 0
 
+            # PERF-OPTIMIZATION: Use ClipDataLoader for lazy loading
             for clip_db in db_clips:
-                # Jetzt können wir direkt auf die Relationships zugreifen (OHNE Query!)
-                # Dank Eager Loading sind alle Daten bereits geladen
-                analysis_data = {}
-                is_analyzed = False
-
-                # Check analysis status (direkter Zugriff auf Relationship)
-                if clip_db.analysis_status:
-                    is_analyzed = (
-                        clip_db.analysis_status.is_fully_analyzed()
-                        if hasattr(clip_db.analysis_status, "is_fully_analyzed")
-                        else False
-                    )
-
-                # Load color analysis (direkter Zugriff)
-                if clip_db.colors:
-                    analysis_data["color"] = {
-                        "temperature": clip_db.colors.temperature,
-                        "temperature_score": clip_db.colors.temperature_score,
-                        "brightness": clip_db.colors.brightness,
-                        "brightness_value": clip_db.colors.brightness_value,
-                        "dominant_colors": clip_db.colors.get_dominant_colors(),
-                        "color_moods": clip_db.colors.get_color_moods(),
-                        "brightness_dynamics": clip_db.colors.brightness_dynamics,
-                        "color_dynamics": clip_db.colors.color_dynamics,
-                        "temporal_rhythm": clip_db.colors.temporal_rhythm,
-                    }
-
-                # Load motion analysis (direkter Zugriff)
-                if clip_db.motion:
-                    analysis_data["motion"] = {
-                        "motion_type": clip_db.motion.motion_type,
-                        "motion_score": clip_db.motion.motion_score,
-                        "motion_rhythm": clip_db.motion.motion_rhythm,
-                        "camera_motion": clip_db.motion.camera_motion,
-                        "camera_magnitude": clip_db.motion.camera_magnitude,
-                    }
-
-                # Load scene analysis (direkter Zugriff)
-                if clip_db.scene_type:
-                    analysis_data["scene"] = {
-                        "scene_types": clip_db.scene_type.get_scene_types(),
-                        "has_face": clip_db.scene_type.has_face,
-                        "face_count": clip_db.scene_type.face_count,
-                        "edge_density": clip_db.scene_type.edge_density,
-                        "texture_variance": clip_db.scene_type.texture_variance,
-                        "depth_of_field": clip_db.scene_type.depth_of_field,
-                    }
-
-                # Load mood analysis (direkter Zugriff)
-                if clip_db.mood:
-                    analysis_data["mood"] = {
-                        "moods": clip_db.mood.get_moods(),
-                        "mood_scores": json.loads(clip_db.mood.mood_scores)
-                        if clip_db.mood.mood_scores
-                        else {},
-                        "brightness": clip_db.mood.brightness,
-                        "saturation": clip_db.mood.saturation,
-                        "contrast": clip_db.mood.contrast,
-                        "energy": clip_db.mood.energy,
-                        "warm_ratio": clip_db.mood.warm_ratio,
-                        "cool_ratio": clip_db.mood.cool_ratio,
-                    }
-
-                # Load style analysis (direkter Zugriff)
-                if clip_db.style:
-                    analysis_data["style"] = {
-                        "styles": clip_db.style.get_styles(),
-                        "sharpness": clip_db.style.sharpness,
-                        "noise_level": clip_db.style.noise_level,
-                        "vignette_score": clip_db.style.vignette_score,
-                        "dynamic_range": clip_db.style.dynamic_range,
-                        "saturation_mean": clip_db.style.saturation_mean,
-                        "saturation_std": clip_db.style.saturation_std,
-                        "mean_brightness": clip_db.style.mean_brightness,
-                    }
-
-                # Load object detection (direkter Zugriff)
-                if clip_db.objects:
-                    analysis_data["objects"] = {
-                        "detected_objects": clip_db.objects.get_detected_objects(),
-                        "object_counts": json.loads(clip_db.objects.object_counts)
-                        if clip_db.objects.object_counts
-                        else {},
-                        "confidence_scores": json.loads(clip_db.objects.confidence_scores)
-                        if clip_db.objects.confidence_scores
-                        else {},
-                        "content_tags": clip_db.objects.get_content_tags(),
-                        "line_count": clip_db.objects.line_count,
-                        "green_ratio": clip_db.objects.green_ratio,
-                        "sky_ratio": clip_db.objects.sky_ratio,
-                        "symmetry": clip_db.objects.symmetry,
-                    }
-
-                # Check if clip needs analysis
-                needs_analysis = not analysis_data or getattr(clip_db, "needs_reanalysis", True)
-                if needs_analysis:
+                clip_data = ClipDataLoader.db_to_dict(clip_db, full_details=False)
+                if clip_data.get("_unanalyzed_count", 0) > 0:
                     unanalyzed_count += 1
-
-                clip_data = {
-                    "id": clip_db.id,
-                    "name": clip_db.name,
-                    "file_path": clip_db.file_path,
-                    "duration": clip_db.duration or 0.0,
-                    "width": clip_db.width or 0,
-                    "height": clip_db.height or 0,
-                    "fps": clip_db.fps or 30.0,
-                    "date_added": str(clip_db.created_at) if clip_db.created_at else "",
-                    "thumbnail_path": clip_db.thumbnail_path,
-                    "analysis": analysis_data,
-                    "is_analyzed": is_analyzed and bool(analysis_data),
-                    "content_fingerprint": getattr(clip_db, "content_fingerprint", None),
-                }
                 self.clips.append(clip_data)
 
             # Update filter widget
@@ -806,6 +722,99 @@ class ClipLibraryWidget(QWidget):
 
         logger.debug(f"Filtered to {len(filtered)} clips")
 
+    def _clear_filters(self):
+        """Clear search and filters."""
+        if self.search_input:
+            self.search_input.clear()
+        if self.filter_widget:
+            self.filter_widget._reset_filters()
+
+    def _render_empty_state(self):
+        """Render empty state message when no clips are found."""
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(15)
+
+        # Icon/Emoji
+        icon_label = QLabel("🔍" if self.clips else "🎬")
+        icon_label.setStyleSheet("font-size: 64px; margin-bottom: 10px; color: #555;")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon_label)
+
+        # Message
+        msg = "No clips match your search" if self.clips else "Your library is empty"
+        msg_label = QLabel(msg)
+        msg_label.setStyleSheet("font-size: 18px; font-weight: bold; color: #888;")
+        msg_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(msg_label)
+
+        # Sub-message/Action
+        if self.clips:
+            sub_msg = QLabel("Try adjusting your filters")
+            sub_msg.setStyleSheet("color: #666; margin-bottom: 15px; font-size: 14px;")
+            sub_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(sub_msg)
+
+            clear_btn = QPushButton("Clear Filters")
+            clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            clear_btn.setStyleSheet("""
+                QPushButton {
+                    padding: 8px 16px;
+                    font-size: 13px;
+                    background-color: #3a3a3a;
+                    color: white;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }
+            """)
+            clear_btn.clicked.connect(self._clear_filters)
+
+            # Wrapper for button alignment
+            btn_wrapper = QWidget()
+            btn_layout = QHBoxLayout(btn_wrapper)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.addStretch()
+            btn_layout.addWidget(clear_btn)
+            btn_layout.addStretch()
+            layout.addWidget(btn_wrapper)
+        else:
+            sub_msg = QLabel("Import videos to get started")
+            sub_msg.setStyleSheet("color: #666; margin-bottom: 15px; font-size: 14px;")
+            sub_msg.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(sub_msg)
+
+            import_btn = QPushButton("Import Clips")
+            import_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            import_btn.setStyleSheet("""
+                QPushButton {
+                    padding: 10px 20px;
+                    background-color: #2a82da;
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 4px;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #3a92ea;
+                }
+            """)
+            import_btn.clicked.connect(self._import_clips)
+
+            # Wrapper for button alignment
+            btn_wrapper = QWidget()
+            btn_layout = QHBoxLayout(btn_wrapper)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.addStretch()
+            btn_layout.addWidget(import_btn)
+            btn_layout.addStretch()
+            layout.addWidget(btn_wrapper)
+
+        # Add to main grid layout, centered
+        self.clip_layout.addWidget(container, 0, 0, 1, CLIPS_PER_ROW)
+
     def _render_clips(self):
         """Render clips in the grid layout with pagination for performance."""
         try:
@@ -825,9 +834,16 @@ class ClipLibraryWidget(QWidget):
                 # Process pending events to clean up deleted widgets
                 QApplication.processEvents()
 
+                # Check for empty state
+                total_clips = len(self.filtered_clips)
+                if total_clips == 0:
+                    self._render_empty_state()
+                    # Update status
+                    self.status_label.setText("No clips found")
+                    return # Exit early
+
                 # Limit initial render for performance (pagination)
                 clips_to_render = self.filtered_clips[:MAX_INITIAL_RENDER]
-                total_clips = len(self.filtered_clips)
 
                 logger.debug(f"Rendering {len(clips_to_render)} clips (max {MAX_INITIAL_RENDER})")
 
@@ -963,13 +979,21 @@ class ClipLibraryWidget(QWidget):
     def _on_clip_selected(self, clip_id: int):
         """Handle clip selection."""
         logger.info(f"Clip selected: {clip_id}")
-        self.clip_selected.emit(clip_id)
 
-        # Find and display clip info
+        # Ensure that the selected clip has full details parsed
+        # This is important if details are lazy-loaded
+        selected_clip = None
         for clip in self.clips:
             if clip.get("id") == clip_id:
-                logger.debug(f"Selected clip: {clip.get('name')}")
+                selected_clip = clip
                 break
+
+        if selected_clip:
+            # Parse full details on demand if not already present
+            ClipDataLoader.ensure_details(selected_clip)
+            logger.debug(f"Selected clip: {selected_clip.get('name')}")
+
+        self.clip_selected.emit(clip_id)
 
     def _on_clip_delete_requested(self, clip_id: int):
         """Handle clip deletion request."""

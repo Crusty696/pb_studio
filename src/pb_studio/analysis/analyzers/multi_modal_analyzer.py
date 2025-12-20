@@ -25,6 +25,7 @@ from scipy import stats
 
 from ...audio.audio_analyzer import AudioAnalyzer
 from ...audio.auto_stem_processor import get_auto_stem_processor
+from ...pacing.motion_analyzer import MotionAnalyzer
 from ...utils.logger import get_logger
 from .video_intelligence_engine import VideoIntelligenceEngine, VideoSceneRecognition
 
@@ -41,7 +42,7 @@ class MultiModalAnalysisResult:
     stems_info: dict[str, Any]
 
     # Video Analysis Results
-    video_features: dict[str, Any]  # Scene recognition, tags
+    video_features: dict[str, Any]  # Scene recognition, tags, motion data
     primary_scene: str
     scene_confidence: float
 
@@ -102,6 +103,9 @@ class MultiModalAnalyzer:
         self.video_engine = VideoIntelligenceEngine(
             clip_model=clip_model, confidence_threshold=0.6, enable_traditional_cv=True
         )
+
+        # Motion Intelligence
+        self.motion_analyzer = MotionAnalyzer(sample_frames=30, frame_skip=5)
 
         # Audio Intelligence
         self.audio_analyzer = AudioAnalyzer()
@@ -181,10 +185,11 @@ class MultiModalAnalyzer:
             # Basic Audio Analysis
             audio_features = {
                 "bpm": None,
-                "energy": None,
+                "energy": None,  # Will hold full spectral energy
                 "tempo_stability": 0.0,
                 "stems_available": False,
                 "stems_info": {},
+                "spectral_features": None,  # Detailed spectral features
             }
 
             # BPM Analysis
@@ -193,6 +198,7 @@ class MultiModalAnalyzer:
                 audio_features["bpm"] = bpm_result.get("bpm", 120.0)
                 audio_features["tempo_stability"] = bpm_result.get("tempo_stability", 0.5)
 
+ feature-sophisticated-quality-analysis-2813999412410248020
             # Energy Analysis (via Spectral Features for timeline)
             spectral_features = self.audio_analyzer.extract_spectral_features(audio_path)
             if spectral_features:
@@ -201,6 +207,20 @@ class MultiModalAnalyzer:
                     "values": spectral_features.get("rms_energy", []),
                 }
                 audio_features["energy"] = spectral_features.get("mean_energy", 0.5)
+
+            # Energy Analysis (legacy beatgrid check)
+            beatgrid_result = self.audio_analyzer.analyze_beatgrid(audio_path)
+            if beatgrid_result:
+                # Keep backward compatibility if needed, though spectral analysis is better
+                pass
+
+            # Detailed Spectral Analysis (for correlation)
+            spectral_result = self.audio_analyzer.extract_spectral_features(audio_path)
+            if spectral_result:
+                audio_features["spectral_features"] = spectral_result
+                # Use rms_energy from spectral features as the main energy indicator
+                audio_features["energy"] = spectral_result.get("rms_energy")
+ main
 
             # Stems Analysis (if enabled)
             if analyze_stems:
@@ -228,14 +248,18 @@ class MultiModalAnalyzer:
                 "tempo_stability": 0.5,
                 "stems_available": False,
                 "stems_info": {},
+                "spectral_features": None,
                 "error": str(e),
             }
 
     def _analyze_video_features(self, video_path: str) -> dict[str, Any]:
-        """Video Feature Extraction mit CLIP."""
+        """Video Feature Extraction mit CLIP und Motion."""
         try:
             # Get video tags using VideoIntelligenceEngine
             video_tags = self.video_engine.get_video_tags(video_path)
+
+            # Get motion analysis
+            motion_result = self.motion_analyzer.analyze_clip(video_path)
 
             return {
                 "tags": video_tags.get("tags", ["unknown"]),
@@ -244,7 +268,13 @@ class MultiModalAnalyzer:
                 "quality_score": video_tags.get("quality_score", 0.0),
                 "frame_count": video_tags.get("frame_count", 0),
                 "all_scores": video_tags.get("all_scores", {}),
+ feature-sophisticated-quality-analysis-2813999412410248020
                 "quality_timeline": video_tags.get("quality_timeline", []),
+
+                "motion_score": motion_result.motion_score,
+                "motion_series": motion_result.motion_series,
+                "motion_times": motion_result.sample_times,
+ main
             }
 
         except Exception as e:
@@ -256,6 +286,9 @@ class MultiModalAnalyzer:
                 "quality_score": 0.0,
                 "frame_count": 0,
                 "all_scores": {},
+                "motion_score": 0.0,
+                "motion_series": [],
+                "motion_times": [],
                 "error": str(e),
             }
 

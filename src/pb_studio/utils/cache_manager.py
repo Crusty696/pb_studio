@@ -178,6 +178,9 @@ class CacheManager:
                     total_size -= size
                     freed_bytes += size
                     deleted_count += 1
+                except FileNotFoundError:
+                    # File already deleted by another process - ignore
+                    pass
                 except Exception as e:
                     logger.warning(f"Failed to delete cache file {f}: {e}")
 
