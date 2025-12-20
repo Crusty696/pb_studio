@@ -389,14 +389,92 @@ class AIEnhancedPacingEngine:
     ) -> list[tuple[float, float, float]]:
         """Detect high-quality zones in content."""
         try:
-            # Simple quality zone detection
-            # TODO: Implement sophisticated quality analysis
-
+            # Sophisticated quality analysis using temporal data
             zones = []
-            quality_score = (cross_modal_score + video_features.get("confidence", 0.5)) / 2
 
-            if quality_score > self.config.min_quality_score:
-                zones.append((0.0, 30.0, quality_score))  # First 30 seconds
+            # Retrieve timelines
+            quality_timeline = video_features.get("quality_timeline", [])
+            energy_timeline = audio_features.get("energy_timeline", {})
+            energy_times = energy_timeline.get("times", [])
+            energy_values = energy_timeline.get("values", [])
+
+            # Fallback if no timeline data
+            if not quality_timeline:
+                quality_score = (cross_modal_score + video_features.get("confidence", 0.5)) / 2
+                if quality_score > self.config.min_quality_score:
+                    zones.append((0.0, 30.0, quality_score))
+                return zones
+
+            # Prepare audio energy interpolation
+            has_audio_energy = len(energy_times) > 0 and len(energy_values) > 0
+
+            current_zone_start = None
+            current_zone_score = 0.0
+            zone_samples = 0
+
+            # Iterate through video timeline
+            for item in quality_timeline:
+                timestamp = item["timestamp"]
+                video_score = item["score"]
+
+                # Combine with audio energy if available
+                combined_score = video_score
+                if has_audio_energy:
+                    # Find nearest audio energy value (simple nearest neighbor or interp)
+                    # For simplicity/speed, using interp
+                    audio_energy = np.interp(timestamp, energy_times, energy_values)
+
+                    # Boost score if high energy matches high video quality
+                    # Energy is typically non-normalized RMS, so we normalize vaguely
+                    norm_energy = min(audio_energy * 5.0, 1.0) # Heuristic normalization
+                    combined_score = (video_score * 0.7) + (norm_energy * 0.3)
+
+                # Check if this frame qualifies as high quality
+                if combined_score >= self.config.min_quality_score:
+                    if current_zone_start is None:
+                        current_zone_start = timestamp
+                        current_zone_score = combined_score
+                        zone_samples = 1
+                    else:
+                        # Update running average
+                        current_zone_score = (current_zone_score * zone_samples + combined_score) / (zone_samples + 1)
+                        zone_samples += 1
+                else:
+                    # End of a zone
+                    if current_zone_start is not None:
+                        duration = timestamp - current_zone_start
+                        if duration > 1.0: # Minimum zone duration 1s
+                            zones.append((current_zone_start, timestamp, current_zone_score))
+                        current_zone_start = None
+                        current_zone_score = 0.0
+                        zone_samples = 0
+
+            # Handle zone at the end
+            if current_zone_start is not None:
+                 zones.append((current_zone_start, quality_timeline[-1]["timestamp"], current_zone_score))
+
+            # Merge close zones (gaps < 2 seconds)
+            if len(zones) > 1:
+                merged_zones = []
+                current_start, current_end, current_score = zones[0]
+
+                for i in range(1, len(zones)):
+                    next_start, next_end, next_score = zones[i]
+                    if next_start - current_end < 2.0:
+                        # Merge
+                        total_duration = (current_end - current_start) + (next_end - next_start)
+                        weighted_score = (
+                            (current_score * (current_end - current_start)) +
+                            (next_score * (next_end - next_start))
+                        ) / total_duration
+                        current_end = next_end
+                        current_score = weighted_score
+                    else:
+                        merged_zones.append((current_start, current_end, current_score))
+                        current_start, current_end, current_score = next_start, next_end, next_score
+
+                merged_zones.append((current_start, current_end, current_score))
+                zones = merged_zones
 
             return zones
 

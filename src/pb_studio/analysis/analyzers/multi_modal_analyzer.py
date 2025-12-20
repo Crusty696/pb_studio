@@ -193,10 +193,14 @@ class MultiModalAnalyzer:
                 audio_features["bpm"] = bpm_result.get("bpm", 120.0)
                 audio_features["tempo_stability"] = bpm_result.get("tempo_stability", 0.5)
 
-            # Energy Analysis
-            beatgrid_result = self.audio_analyzer.analyze_beatgrid(audio_path)
-            if beatgrid_result:
-                audio_features["energy"] = beatgrid_result.get("energy")
+            # Energy Analysis (via Spectral Features for timeline)
+            spectral_features = self.audio_analyzer.extract_spectral_features(audio_path)
+            if spectral_features:
+                audio_features["energy_timeline"] = {
+                    "times": spectral_features.get("frame_times", []),
+                    "values": spectral_features.get("rms_energy", []),
+                }
+                audio_features["energy"] = spectral_features.get("mean_energy", 0.5)
 
             # Stems Analysis (if enabled)
             if analyze_stems:
@@ -240,6 +244,7 @@ class MultiModalAnalyzer:
                 "quality_score": video_tags.get("quality_score", 0.0),
                 "frame_count": video_tags.get("frame_count", 0),
                 "all_scores": video_tags.get("all_scores", {}),
+                "quality_timeline": video_tags.get("quality_timeline", []),
             }
 
         except Exception as e:

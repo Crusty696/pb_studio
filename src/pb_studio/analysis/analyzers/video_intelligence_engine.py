@@ -46,6 +46,7 @@ class VideoSceneRecognition:
     # Kombinierte Intelligenz
     combined_tags: list[str] = None  # Finale Tags aus beiden Systemen
     quality_score: float = 0.0  # Gesamt-Qualität der Erkennung (0-1)
+    timestamp: float = 0.0  # Zeitstempel des Frames in Sekunden
 
     def to_dict(self) -> dict:
         """Konvertiert zu Dictionary für DB-Speicherung."""
@@ -292,6 +293,7 @@ class VideoIntelligenceEngine:
 
             # Gleichmäßig verteilte Frame-Indizes
             frame_indices = np.linspace(0, total_frames - 1, sample_frames, dtype=int)
+            fps = cap.get(cv2.CAP_PROP_FPS)
 
             for frame_idx in frame_indices:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
@@ -299,7 +301,8 @@ class VideoIntelligenceEngine:
 
                 if ret:
                     result = self.analyze_frame(frame, custom_labels)
-                    result.frame_index = frame_idx  # Add frame index for reference
+                    result.timestamp = frame_idx / fps if fps > 0 else 0.0
+                    result.frame_index = frame_idx
                     results.append(result)
                 else:
                     logger.warning(f"Could not read frame {frame_idx} from {video_path}")
@@ -370,6 +373,12 @@ class VideoIntelligenceEngine:
         sorted_labels = sorted(aggregated_labels.items(), key=lambda x: x[1], reverse=True)
         final_tags = [label for label, score in sorted_labels[:5]]
 
+        # Erstelle Quality Timeline
+        quality_timeline = [
+            {"timestamp": r.timestamp, "score": r.quality_score}
+            for r in sorted(frame_results, key=lambda x: x.timestamp)
+        ]
+
         return {
             "tags": final_tags,
             "primary_scene": primary_label,
@@ -377,6 +386,7 @@ class VideoIntelligenceEngine:
             "quality_score": np.mean(quality_scores) if quality_scores else 0.0,
             "frame_count": len(frame_results),
             "all_scores": aggregated_labels,
+            "quality_timeline": quality_timeline,
         }
 
     def _combine_analysis_results(
