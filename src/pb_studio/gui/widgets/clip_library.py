@@ -319,7 +319,8 @@ class ClipLibraryWidget(QWidget):
         file_path = clip.get("file_path")
         if file_path and Path(file_path).exists():
             thumbnail = self.video_manager.generate_thumbnail(
-                Path(file_path), time_offset=1.0  # 1 second into video
+                Path(file_path),
+                time_offset=1.0,  # 1 second into video
             )
             if thumbnail:
                 pixmap = QPixmap(thumbnail)
@@ -381,7 +382,7 @@ class ClipLibraryWidget(QWidget):
         seconds = int(duration % 60)
         duration_str = f"{minutes:02d}:{seconds:02d}"
 
-        return f"{name}\n" f"{width}x{height} @ {fps:.1f}fps\n" f"Duration: {duration_str}"
+        return f"{name}\n{width}x{height} @ {fps:.1f}fps\nDuration: {duration_str}"
 
     def _format_clip_tooltip(self, clip: dict) -> str:
         """
@@ -400,7 +401,7 @@ class ClipLibraryWidget(QWidget):
             f"Resolution: {clip.get('width', 0)}x{clip.get('height', 0)}\n"
             f"FPS: {clip.get('fps', 0):.2f}\n"
             f"Codec: {clip.get('codec', 'Unknown')}\n"
-            f"Size: {clip.get('size_bytes', 0) / (1024*1024):.1f} MB"
+            f"Size: {clip.get('size_bytes', 0) / (1024 * 1024):.1f} MB"
         )
 
     def _passes_filter(self, clip: dict) -> bool:

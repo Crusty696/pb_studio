@@ -1217,7 +1217,7 @@ class ClipLibraryWidget(QWidget):
                 # Update progress
                 file_name = Path(file_path).name
                 progress.setValue(i)
-                progress.setLabelText(f"Importing {i+1}/{total_files}:\n{file_name}")
+                progress.setLabelText(f"Importing {i + 1}/{total_files}:\n{file_name}")
                 QApplication.processEvents()
 
                 # Import single clip using extracted method
@@ -1289,7 +1289,7 @@ class ClipLibraryWidget(QWidget):
                 if progress:
                     file_name = Path(file_path).name
                     progress.setValue(i)
-                    progress.setLabelText(f"Importing {i+1}/{total_files}:\n{file_name}")
+                    progress.setLabelText(f"Importing {i + 1}/{total_files}:\n{file_name}")
                     QApplication.processEvents()
 
                 # Import single clip using extracted method

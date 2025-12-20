@@ -149,7 +149,7 @@ class PresetPanel(QWidget):
                 QMessageBox.warning(
                     self,
                     "Ungültiger Name",
-                    f"'{name}' ist ein vordefiniertes Preset.\n" "Bitte wähle einen anderen Namen.",
+                    f"'{name}' ist ein vordefiniertes Preset.\nBitte wähle einen anderen Namen.",
                 )
                 return
 

@@ -2,7 +2,6 @@
 Dialog for creating and editing projects.
 """
 
-
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,

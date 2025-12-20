@@ -45,6 +45,17 @@ def main():
         Exit code (0 = success)
     """
     # Setup logging
+    # Note: Cleanup runs BEFORE logging to ensure logs are cleared if requested
+    # and to provide a truly fresh state.
+    try:
+        from pb_studio.utils.cleanup import perform_startup_cleanup
+        # Assuming run from project root: c:\GEMINI_PROJEKTE\_Pb-studio_V_2\pb_studio\main.py
+        # root is the directory containing main.py
+        project_root = Path(__file__).parent
+        perform_startup_cleanup(project_root)
+    except Exception as e:
+        print(f"Startup cleanup failed: {e}")
+
     setup_logging(console_level=logging.INFO)
     logger = get_logger(__name__)
 

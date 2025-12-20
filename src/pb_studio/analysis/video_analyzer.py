@@ -422,7 +422,8 @@ class VideoAnalyzer:
         """
         try:
             return self.video_intelligence_engine.get_video_tags(
-                video_path=video_path, confidence_threshold=None  # Use engine default
+                video_path=video_path,
+                confidence_threshold=None,  # Use engine default
             )
         except Exception as e:
             logger.error(f"Auto-tagging failed for {video_path}: {e}")
@@ -751,9 +752,10 @@ class VideoAnalyzer:
             # Merge semantic tags into object tags (so they get saved to DB)
             # BUG FIX: Check for 'error' key to avoid comparing string with float
             if (
-                "semantic" in results
-                and "objects" in results
-                and "error" not in results.get("semantic", {})
+                results.get("semantic")
+                and results.get("objects")
+                and "error" not in results["semantic"]
+                and "error" not in results["objects"]
             ):
                 # Filter high probability tags (> 0.2)
                 semantic_tags = [
@@ -761,11 +763,15 @@ class VideoAnalyzer:
                     for k, v in results["semantic"].items()
                     if isinstance(v, (int, float)) and v > 0.2
                 ]
-                if "content_tags" not in results["objects"]:
+                
+                # Ensure objects result has content_tags list
+                if "content_tags" not in results["objects"] or results["objects"]["content_tags"] is None:
                     results["objects"]["content_tags"] = []
+                    
                 # Combine unique
                 current_tags = results["objects"]["content_tags"]
-                results["objects"]["content_tags"] = list(set(current_tags + semantic_tags))
+                if isinstance(current_tags, list):
+                    results["objects"]["content_tags"] = list(set(current_tags + semantic_tags))
 
             # Motion braucht den Video-Pfad als String (nicht das cap Objekt)
             # Release cap before motion analysis to free resources, as MotionAnalyzer opens its own capture
@@ -830,7 +836,7 @@ class VideoAnalyzer:
         session.query(ClipFingerprint).filter(ClipFingerprint.clip_id == clip_id).delete()
 
         # Farb-Analyse speichern
-        if "colors" in results and "error" not in results["colors"]:
+        if results.get("colors") and "error" not in results["colors"]:
             colors = results["colors"]
             color_entry = ClipColors(
                 clip_id=clip_id,
@@ -849,7 +855,7 @@ class VideoAnalyzer:
             session.add(color_entry)
 
         # Motion-Analyse speichern
-        if "motion" in results and "error" not in results["motion"]:
+        if results.get("motion") and "error" not in results["motion"]:
             motion = results["motion"]
             motion_entry = ClipMotion(
                 clip_id=clip_id,
@@ -863,7 +869,7 @@ class VideoAnalyzer:
             session.add(motion_entry)
 
         # Scene-Analyse speichern
-        if "scene" in results and "error" not in results["scene"]:
+        if results.get("scene") and "error" not in results["scene"]:
             scene = results["scene"]
             scene_entry = ClipSceneType(
                 clip_id=clip_id,
@@ -878,7 +884,7 @@ class VideoAnalyzer:
             session.add(scene_entry)
 
         # Mood-Analyse speichern
-        if "mood" in results and "error" not in results["mood"]:
+        if results.get("mood") and "error" not in results["mood"]:
             mood = results["mood"]
             mood_entry = ClipMood(
                 clip_id=clip_id,
@@ -895,7 +901,7 @@ class VideoAnalyzer:
             session.add(mood_entry)
 
         # Objects-Analyse speichern
-        if "objects" in results and "error" not in results["objects"]:
+        if results.get("objects") and "error" not in results["objects"]:
             obj = results["objects"]
             obj_entry = ClipObjects(
                 clip_id=clip_id,
@@ -911,7 +917,7 @@ class VideoAnalyzer:
             session.add(obj_entry)
 
         # Style-Analyse speichern
-        if "style" in results and "error" not in results["style"]:
+        if results.get("style") and "error" not in results["style"]:
             style = results["style"]
             style_entry = ClipStyle(
                 clip_id=clip_id,
@@ -932,10 +938,10 @@ class VideoAnalyzer:
                 clip_id=clip_id,
                 vector_file=results.get("embedding_path"),
                 phash=results.get("phash")
-                if "phash" in results and "error" not in results.get("phash", {})
+                if results.get("phash") and "error" not in results["phash"]
                 else None,
                 dhash=results.get("dhash")
-                if "dhash" in results and "error" not in results.get("dhash", {})
+                if results.get("dhash") and "error" not in results["dhash"]
                 else None,
             )
             session.add(fingerprint_entry)
@@ -1014,7 +1020,7 @@ class VideoAnalyzer:
             # GPU Memory freigeben alle 10 Clips
             if (i + 1) % 10 == 0:
                 self.unload_models()
-                logger.debug(f"Models nach {i+1} Clips entladen")
+                logger.debug(f"Models nach {i + 1} Clips entladen")
 
         # Final cleanup
         self.unload_models()

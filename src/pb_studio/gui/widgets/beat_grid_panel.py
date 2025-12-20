@@ -6,7 +6,6 @@ BPM-Anzeige und Beat-Grid Visualisierung.
 Author: PB_studio Development Team
 """
 
-
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import (

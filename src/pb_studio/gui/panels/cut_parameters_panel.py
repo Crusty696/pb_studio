@@ -5,7 +5,6 @@ Reusable panel for cut/clip duration and tempo settings.
 Extracts cut parameters UI from ParameterDashboardWidget.
 """
 
-
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QGroupBox,
@@ -107,9 +106,7 @@ class CutParametersPanel(QGroupBox):
         self.tempo_slider.setMinimum(0)
         self.tempo_slider.setMaximum(100)
         self.tempo_slider.setValue(50)  # Normal
-        self.tempo_slider.setToolTip(
-            "Schnitttempo:\n" "← Links = Langsamer\n" "→ Rechts = Schneller"
-        )
+        self.tempo_slider.setToolTip("Schnitttempo:\n← Links = Langsamer\n→ Rechts = Schneller")
         self.tempo_slider.valueChanged.connect(self._on_tempo_changed)
         tempo_layout.addWidget(self.tempo_slider)
 

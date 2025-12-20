@@ -6,7 +6,6 @@ Cut-Dauer, Tempo und Pacing-Mode Einstellungen.
 Author: PB_studio Development Team
 """
 
-
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -165,9 +164,7 @@ class CutParameterPanel(QWidget):
         self.continuity_slider.setMaximum(100)
         self.continuity_slider.setValue(40)  # Default 0.4
         self.continuity_slider.setToolTip(
-            "Visuelle Kontinuität:\n"
-            "← Links = Mehr Abwechslung\n"
-            "→ Rechts = Mehr visueller Fluss"
+            "Visuelle Kontinuität:\n← Links = Mehr Abwechslung\n→ Rechts = Mehr visueller Fluss"
         )
         self.continuity_slider.valueChanged.connect(self._on_continuity_changed)
         continuity_layout.addWidget(self.continuity_slider)

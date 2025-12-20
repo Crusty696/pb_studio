@@ -3,6 +3,7 @@ Render Controller - Handles video rendering operations.
 
 Extracted from MainWindow God Object (P1.6).
 """
+
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,8 +15,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-from ..dialogs.render_settings_dialog import RenderSettingsDialog
 from pb_studio.video.video_renderer import RenderSettings
+
+from ..dialogs.render_settings_dialog import RenderSettingsDialog
 
 # P3-FIX: Phase-Mapping Constants (consistent with MultiStageProgressDialog)
 # These indices correspond to the phase order in MultiStageProgressDialog.phases[]

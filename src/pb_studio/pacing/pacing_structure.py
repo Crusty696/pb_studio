@@ -199,7 +199,7 @@ class StructureManager:
         if audio_duration > MAX_DURATION_FOR_STRUCTURE:
             logger.warning(
                 f"⚠️ Skipping structure analysis: audio too long "
-                f"({audio_duration/60:.1f} min > {MAX_DURATION_FOR_STRUCTURE/60:.1f} min). "
+                f"({audio_duration / 60:.1f} min > {MAX_DURATION_FOR_STRUCTURE / 60:.1f} min). "
                 f"Using energy-based mood mapping instead."
             )
             return False

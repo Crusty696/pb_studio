@@ -2,6 +2,7 @@
 Clip Calculation Logic
 Extracted from CutListController to separate concerns.
 """
+
 import random
 
 

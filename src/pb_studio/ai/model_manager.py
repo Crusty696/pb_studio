@@ -665,6 +665,19 @@ class ModelManager:
 
         logger.info("AI Model Manager initialized")
 
+    def download_model(self, name: str, force: bool = False) -> Path | None:
+        """
+        Download a model by name. wrapper for selector.download_model.
+
+        Args:
+            name: Model name
+            force: Force redownload
+
+        Returns:
+            Path to model file or None
+        """
+        return self.selector.download_model(name, force)
+
     def get_best_model_for_task(
         self, task: str, quality_preference: float = 0.7, **kwargs
     ) -> ModelSpec | None:

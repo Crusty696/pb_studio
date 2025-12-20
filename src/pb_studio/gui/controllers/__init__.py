@@ -4,6 +4,7 @@ Controllers Package - Extracted from MainWindow God Object (P1.6).
 Controllers handle specific business logic and coordinate between
 widgets and the application core.
 """
+
 from .audio_analysis_controller import AudioAnalysisController, AudioAnalysisWorker
 from .cutlist_controller import CutListController
 from .file_controller import FileController

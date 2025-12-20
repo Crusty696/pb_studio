@@ -42,10 +42,9 @@ if (Test-Path ".venv\Scripts\Activate.ps1") {
 
     & ".venv\Scripts\Activate.ps1"
 
-    Write-Host "     Starte PB Studio..."
-    Write-Host ""
-
-    python start_app.py
+    # Versuche Python direkt
+    Write-Host "Starte PB Studio via main.py..." -ForegroundColor Cyan
+    python main.py
     $exitCode = $LASTEXITCODE
 }
 # ----------------------------------------------------------------------------

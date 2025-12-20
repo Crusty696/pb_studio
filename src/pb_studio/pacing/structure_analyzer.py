@@ -464,7 +464,7 @@ class StructureAnalyzer:
         Returns:
             StructureAnalysisResult mit groben Segmenten
         """
-        logger.info(f"Vereinfachte Struktur-Analyse fuer {duration/60:.1f} Min Audio")
+        logger.info(f"Vereinfachte Struktur-Analyse fuer {duration / 60:.1f} Min Audio")
 
         # Downsampled Audio laden (11025 Hz fuer Performance)
         y, sr = librosa.load(audio_path, sr=11025, mono=True)

@@ -379,7 +379,9 @@ class MelodyTriggerAnalyzer:
         # Mindestabstand: 4 Sekunden zwischen Hooks
         min_distance = int(4.0 * sr / self.hop_length)
         peaks, properties = find_peaks(
-            smoothed, distance=min_distance, prominence=0.15  # Mindest-Prominence
+            smoothed,
+            distance=min_distance,
+            prominence=0.15,  # Mindest-Prominence
         )
 
         hook_times = rms_times[peaks] if len(peaks) > 0 else np.array([])
@@ -391,7 +393,7 @@ class MelodyTriggerAnalyzer:
         # Statistik
         active_ratio = np.sum(melody_presence > 0.15) / len(melody_presence)
         logger.info(
-            f"Melody-Analyse: {active_ratio*100:.1f}% aktiv, "
+            f"Melody-Analyse: {active_ratio * 100:.1f}% aktiv, "
             f"{len(synth_hit_times)} Synth-Stabs, {len(hook_times)} Hooks"
         )
 

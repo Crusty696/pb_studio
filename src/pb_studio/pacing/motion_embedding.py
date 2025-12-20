@@ -305,8 +305,7 @@ def create_query_vector(
         # Default: MEDIUM (idx=2)
         vector[4] = 1.0
         logger.warning(
-            f"Unknown motion type '{target_motion_type}', using MEDIUM. "
-            f"Valid types: {MOTION_TYPES}"
+            f"Unknown motion type '{target_motion_type}', using MEDIUM. Valid types: {MOTION_TYPES}"
         )
 
     # [7-20] Moods Multi-Hot

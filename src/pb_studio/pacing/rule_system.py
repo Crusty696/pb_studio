@@ -554,7 +554,7 @@ class RuleEngine:
         cuts: list[CutListEntry] = []
         current_time = 0.0
 
-        logger.info(f"Applying {len(self.rules)} rules over {duration}s " f"(step={time_step}s)")
+        logger.info(f"Applying {len(self.rules)} rules over {duration}s (step={time_step}s)")
 
         while current_time < duration:
             # Build context for this timeline position

@@ -431,7 +431,10 @@ class TriggerSystem:
         """
         # Onset-Frames erkennen
         onset_frames = librosa.onset.onset_detect(
-            y=y, sr=sr, hop_length=self.hop_length, backtrack=True  # Präzisere Onset-Lokalisierung
+            y=y,
+            sr=sr,
+            hop_length=self.hop_length,
+            backtrack=True,  # Präzisere Onset-Lokalisierung
         )
 
         # Zu Zeitpunkten konvertieren

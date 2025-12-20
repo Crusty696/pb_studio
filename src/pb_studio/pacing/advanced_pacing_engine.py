@@ -770,7 +770,7 @@ class AdvancedPacingEngine:
             enabled: True = Motion-Matching aktivieren, False = deaktivieren
         """
         self.use_motion_matching = enabled
-        logger.info(f"Motion-Energy-Matching: " f"{'aktiviert' if enabled else 'deaktiviert'}")
+        logger.info(f"Motion-Energy-Matching: {'aktiviert' if enabled else 'deaktiviert'}")
 
     def enable_faiss_matching(
         self,

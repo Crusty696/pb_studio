@@ -227,7 +227,7 @@ class OnsetDetector:
     ) -> DrumHitsResult:
         """Analysiert einen Audio-Chunk und gibt zeitversetzte Treffer zurück."""
         logger.debug(
-            f"Processing chunk: offset={offset_seconds:.2f}s, duration={len(y_full)/sr_full:.2f}s"
+            f"Processing chunk: offset={offset_seconds:.2f}s, duration={len(y_full) / sr_full:.2f}s"
         )
 
         # KICK (20-150 Hz)

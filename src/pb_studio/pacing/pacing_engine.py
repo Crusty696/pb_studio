@@ -175,8 +175,7 @@ class PacingEngine:
         final_time = snapped_time + self.beatgrid.beatgrid_offset
 
         logger.debug(
-            f"Snap: {timeline_position:.3f}s → {final_time:.3f}s "
-            f"(mode={mode}, division={division})"
+            f"Snap: {timeline_position:.3f}s → {final_time:.3f}s (mode={mode}, division={division})"
         )
 
         return max(0.0, final_time)  # Ensure non-negative

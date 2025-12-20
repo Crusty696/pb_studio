@@ -28,10 +28,11 @@ if exist ".venv\Scripts\activate.bat" (
     echo      Aktiviere .venv...
     call .venv\Scripts\activate.bat
 
-    echo      Starte PB Studio...
-    echo.
-    python start_app.py
-    set "EXITCODE=!ERRORLEVEL!"
+    echo     :: Starte die App via main.py (robuster Entry Point)
+echo      Starte PB Studio...
+    python main.py
+    if errorlevel 1 goto error
+    goto end"EXITCODE=!ERRORLEVEL!"
     goto :done
 )
 
@@ -56,7 +57,7 @@ if %ERRORLEVEL% EQU 0 (
     echo [OK] Poetry (via Python) gefunden
     echo      Starte mit Poetry...
     echo.
-    python -m poetry run python start_app.py
+    python -m poetry run python main.py
     set "EXITCODE=!ERRORLEVEL!"
     goto :done
 )
@@ -72,7 +73,7 @@ echo.
 py -3 --version >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo [OK] Python Launcher (py -3) gefunden
-    py -3 start_app.py
+    py -3 main.py
     set "EXITCODE=!ERRORLEVEL!"
     goto :done
 )

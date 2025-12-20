@@ -220,7 +220,7 @@ class StepGridSequencer:
             ValueError: If step_index out of range
         """
         if not 0 <= step_index < self.num_steps:
-            raise ValueError(f"Step index {step_index} out of range (0-{self.num_steps-1})")
+            raise ValueError(f"Step index {step_index} out of range (0-{self.num_steps - 1})")
 
         step = self.pattern.steps[step_index]
         step.activate(clip_id=clip_id, velocity=velocity)
@@ -243,7 +243,7 @@ class StepGridSequencer:
             ValueError: If step_index out of range
         """
         if not 0 <= step_index < self.num_steps:
-            raise ValueError(f"Step index {step_index} out of range (0-{self.num_steps-1})")
+            raise ValueError(f"Step index {step_index} out of range (0-{self.num_steps - 1})")
 
         step = self.pattern.steps[step_index]
         step.deactivate()

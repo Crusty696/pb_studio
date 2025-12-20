@@ -321,7 +321,7 @@ class QdrantClipMatcher:
                 filter_time = time.time() - filter_start
                 total_time = time.time() - func_start
                 logger.debug(
-                    f"🔬 Qdrant find_best_clip (fallback): " f"Total={total_time*1000:.3f}ms"
+                    f"🔬 Qdrant find_best_clip (fallback): Total={total_time * 1000:.3f}ms"
                 )
                 return random_clip_id, file_path, 0.5
 
@@ -401,10 +401,10 @@ class QdrantClipMatcher:
 
         logger.info(
             f"🔬 Qdrant find_best_clip: "
-            f"Total={total_time*1000:.3f}ms "
-            f"(Query={query_time*1000:.3f}ms, "
-            f"Search={search_time*1000:.3f}ms, "
-            f"Filter={filter_time*1000:.3f}ms)"
+            f"Total={total_time * 1000:.3f}ms "
+            f"(Query={query_time * 1000:.3f}ms, "
+            f"Search={search_time * 1000:.3f}ms, "
+            f"Filter={filter_time * 1000:.3f}ms)"
         )
 
         return clip_id, file_path, distance

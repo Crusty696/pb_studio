@@ -65,7 +65,7 @@ class FrameBufferPool:
         self._pre_allocate()
 
         logger.info(
-            f"FrameBufferPool initialized: shape={shape}, " f"dtype={dtype}, pool_size={pool_size}"
+            f"FrameBufferPool initialized: shape={shape}, dtype={dtype}, pool_size={pool_size}"
         )
 
     def _pre_allocate(self):

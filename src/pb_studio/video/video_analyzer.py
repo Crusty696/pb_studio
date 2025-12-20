@@ -432,7 +432,7 @@ class VideoAnalyzer:
             }
 
             logger.info(
-                f"Scene analysis complete: {len(scenes)} scenes detected " f"({video_path.name})"
+                f"Scene analysis complete: {len(scenes)} scenes detected ({video_path.name})"
             )
 
             # Store in database if video_clip_id provided
@@ -561,7 +561,10 @@ class VideoAnalyzer:
             # BUG FIX: Explicitly release video stream to prevent resource leak
             if video is not None:
                 try:
-                    video.release()
+                    if hasattr(video, "release"):
+                        video.release()
+                    elif hasattr(video, "close"):
+                        video.close()
                 except Exception as e:
                     logger.debug(f"Error releasing video stream: {e}")
 

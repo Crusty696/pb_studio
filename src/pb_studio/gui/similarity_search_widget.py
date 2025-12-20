@@ -7,7 +7,6 @@ Ermoeglicht:
 - Visuelle Darstellung der Aehnlichkeit
 """
 
-
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtWidgets import (
     QDialog,
@@ -452,7 +451,7 @@ class DuplicateFinderDialog(QDialog):
             if self._duplicates:
                 for i, group in enumerate(self._duplicates):
                     item = QListWidgetItem(
-                        f"Group {i+1}: {len(group)} clips (IDs: {', '.join(map(str, group))})"
+                        f"Group {i + 1}: {len(group)} clips (IDs: {', '.join(map(str, group))})"
                     )
                     self.results_list.addItem(item)
 

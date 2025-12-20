@@ -406,7 +406,7 @@ def estimate_max_batch_size(model_size_gb: float, sample_size_gb: float) -> int:
 
     logger.debug(
         f"GPU Memory: {info['total_gb']:.1f}GB total, "
-        f"{effective_reserve*100:.0f}% reserve, "
+        f"{effective_reserve * 100:.0f}% reserve, "
         f"{model_size_gb:.1f}GB model, "
         f"{available:.1f}GB available for batching"
     )

@@ -262,7 +262,7 @@ class DatabaseWorker(QObject):
                 # Progress update every 20 clips
                 if (i + 1) % 20 == 0 or (i + 1) == total:
                     progress = int(30 + (i / total) * 70)  # 30% to 100%
-                    self.progress_update.emit(progress, 100, f"Processing clip {i+1}/{total}...")
+                    self.progress_update.emit(progress, 100, f"Processing clip {i + 1}/{total}...")
 
             # Emit results
             self.progress_update.emit(100, 100, f"Loaded {len(clips_data)} clips")

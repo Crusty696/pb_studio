@@ -22,7 +22,7 @@ def check_status():
 
             stats = data.get("statistics", {})
             print("MUSIK-ANALYSE: ABGESCHLOSSEN")
-            print(f"Audio-Dauer: {stats.get('total_duration', 0)/60:.1f} min")
+            print(f"Audio-Dauer: {stats.get('total_duration', 0) / 60:.1f} min")
             print(f"BPM: {stats.get('bpm', 0):.1f}")
             print(f"Cuts total: {stats.get('total_cuts', 0)}")
             print(f"Avg Clip-Laenge: {stats.get('avg_clip_duration', 0):.2f}s")

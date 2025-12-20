@@ -222,6 +222,10 @@ class DemucsSeparator:
             str(input_path),
         ]
 
+        if device_str == "cpu":
+            logger.warning("⚠️ CPU-Mode active. Stem separation will be slow (approx. 20-40 min for 1h audio).")
+            logger.info("Please be patient. The application has not crashed.")
+
         logger.info(f"Executing Demucs: {' '.join(cmd)}")
         try:
             result = subprocess.run(
@@ -230,6 +234,9 @@ class DemucsSeparator:
             if result.returncode != 0:
                 logger.error(f"Demucs stderr: {result.stderr}")
                 raise RuntimeError(f"Demucs exited with code {result.returncode}")
+            elif result.stderr:
+                # Log stderr as warning even on success (Demucs sometimes prints info to stderr)
+                logger.debug(f"Demucs stderr output: {result.stderr}")
         except subprocess.TimeoutExpired as e:
             if hasattr(e, "process") and e.process:
                 self._cleanup_on_timeout(e.process)

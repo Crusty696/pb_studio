@@ -1,4 +1,5 @@
 """Database Migration Rollback Utilities."""
+
 import logging
 import shutil
 import sqlite3

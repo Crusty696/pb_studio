@@ -237,7 +237,7 @@ class ParallelPacingEngine:
         logger.info("[ParallelPacingEngine] Parallel generation complete!")
         logger.info(f"  Total time: {total_time:.2f}s")
         logger.info(f"  Clips selected: {len(results)}")
-        logger.info(f"  Rate: {len(results)/total_time:.1f} clips/sec")
+        logger.info(f"  Rate: {len(results) / total_time:.1f} clips/sec")
         logger.info(f"  Estimated speedup: {self.speedup_factor:.2f}x")
 
         return results
@@ -287,7 +287,7 @@ class ParallelPacingEngine:
 
         logger.info("[ParallelPacingEngine] Parallel generation complete!")
         logger.info(f"  Total time: {total_time:.2f}s")
-        logger.info(f"  Rate: {len(results)/total_time:.1f} clips/sec")
+        logger.info(f"  Rate: {len(results) / total_time:.1f} clips/sec")
 
         return results
 

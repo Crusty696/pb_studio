@@ -221,7 +221,7 @@ def create_clip_matcher(
     # Validate backend
     if backend not in ["faiss-cpu", "faiss-gpu", "qdrant"]:
         raise ValueError(
-            f"Invalid backend: {backend}. " f"Must be 'auto', 'faiss-cpu', 'faiss-gpu', or 'qdrant'"
+            f"Invalid backend: {backend}. Must be 'auto', 'faiss-cpu', 'faiss-gpu', or 'qdrant'"
         )
 
     # Create matcher based on backend
@@ -273,7 +273,7 @@ def create_clip_matcher(
             )
 
         logger.info(
-            f"Creating QdrantClipMatcher " f"(persistence: {use_persistence}, path: {persist_path})"
+            f"Creating QdrantClipMatcher (persistence: {use_persistence}, path: {persist_path})"
         )
         return QdrantClipMatcher(use_persistence=use_persistence, persist_path=persist_path)
 
@@ -428,7 +428,7 @@ def get_or_create_matcher(
     )
 
     if cache_valid:
-        logger.debug(f"Reusing cached {effective_backend} matcher " f"(hash: {clip_hash[:8]}...)")
+        logger.debug(f"Reusing cached {effective_backend} matcher (hash: {clip_hash[:8]}...)")
         return _matcher_cache["instance"]
 
     # Create new matcher

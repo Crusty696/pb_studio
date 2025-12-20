@@ -3,6 +3,7 @@ Playback Controller - Handles audio playback control.
 
 Extracted from MainWindow God Object (P1.6).
 """
+
 import logging
 from typing import TYPE_CHECKING
 

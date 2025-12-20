@@ -1,0 +1,64 @@
+@echo off
+setlocal
+echo ===================================================
+echo   PB Studio - ONNX Runtime Fixer
+echo ===================================================
+echo.
+echo Dieses Skript behebt "DLL load failed" Fehler bei ONNX Runtime.
+echo Es entfernt alle ONNX-Varianten und installiert nur die DirectML-Version.
+echo.
+
+cd /d "%~dp0"
+
+if not exist ".venv" (
+    echo ACHTUNG: .venv nicht gefunden! Bitte im Projektverzeichnis ausfuehren.
+    pause
+    exit /b
+)
+
+echo Aktiviere Virtual Environment...
+call .venv\Scripts\activate
+if errorlevel 1 (
+    echo Fehler beim Aktivieren der .venv
+    pause
+    exit /b
+)
+
+echo.
+echo Schritt 1: Bereinigung existierender ONNX-Installationen...
+echo ---------------------------------------------------
+echo Entferne onnxruntime...
+pip uninstall -y onnxruntime
+echo Entferne onnxruntime-gpu...
+pip uninstall -y onnxruntime-gpu
+echo Entferne onnxruntime-directml...
+pip uninstall -y onnxruntime-directml
+echo.
+
+echo Schritt 2: Cache bereingen (optional, aber empfohlen)...
+echo ---------------------------------------------------
+pip cache purge
+
+echo.
+echo Schritt 3: Installation der korrekten Version (DirectML)...
+echo ---------------------------------------------------
+:: Installiere spezifische Version, die oft stabiler ist, oder latest
+pip install onnxruntime-directml
+
+echo.
+echo Schritt 4: Verifikation...
+echo ---------------------------------------------------
+python -c "import onnxruntime; print(f'SUCCESS: ONNX Runtime {onnxruntime.__version__} found! Providers: {onnxruntime.get_available_providers()}')"
+
+if errorlevel 1 (
+    echo.
+    echo [FEHLER] Verifikation fehlgeschlagen!
+    echo Bitte pruefen Sie, ob Visual C++ Redistributable installiert ist.
+) else (
+    echo.
+    echo [OK] ONNX Runtime erfolgreich repariert.
+)
+
+echo.
+echo Fertig. Sie koennen dieses Fenster schliessen und PB Studio neu starten.
+pause

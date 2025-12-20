@@ -6,7 +6,6 @@ Trigger-Settings für Cuts (Beat, Onset, Kick, Snare, HiHat, Energy).
 Author: PB_studio Development Team
 """
 
-
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,

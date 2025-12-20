@@ -53,7 +53,7 @@ class FAISSStrategy(ClipSelectionStrategy):
         if not self._matcher.is_ready():
             self._matcher.build_index(available_clips)
             build_time = time.time() - start_time
-            logger.info(f"FAISS index built in {build_time*1000:.1f}ms")
+            logger.info(f"FAISS index built in {build_time * 1000:.1f}ms")
         else:
             logger.debug("FAISS index already built, reusing")
 

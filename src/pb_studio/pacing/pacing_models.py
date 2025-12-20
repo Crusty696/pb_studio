@@ -361,7 +361,7 @@ class PacingBlueprint(BaseModel):
                 raise ValueError(
                     f"Cuts must be in chronological order: "
                     f"cut at index {i} (start={current.start_time}s) "
-                    f"comes after cut at index {i+1} (start={next_cut.start_time}s)"
+                    f"comes after cut at index {i + 1} (start={next_cut.start_time}s)"
                 )
 
         return cuts
@@ -395,7 +395,7 @@ class PacingBlueprint(BaseModel):
                 raise ValueError(
                     f"Overlapping cuts detected: "
                     f"Cut {i} (clip_id={current.clip_id}, {current.start_time}s-{current.end_time}s) "
-                    f"overlaps with Cut {i+1} (clip_id={next_cut.clip_id}, "
+                    f"overlaps with Cut {i + 1} (clip_id={next_cut.clip_id}, "
                     f"{next_cut.start_time}s-{next_cut.end_time}s)"
                 )
 
@@ -421,8 +421,7 @@ class PacingBlueprint(BaseModel):
         if not self.cuts:
             if self.total_duration != 0.0:
                 raise ValueError(
-                    f"total_duration must be 0.0 when cuts list is empty, "
-                    f"got {self.total_duration}"
+                    f"total_duration must be 0.0 when cuts list is empty, got {self.total_duration}"
                 )
             return self
 
@@ -464,8 +463,7 @@ class PacingBlueprint(BaseModel):
         MAX_DURATION = 24 * 60 * 60  # 24 hours in seconds
         if self.total_duration > MAX_DURATION:
             raise ValueError(
-                f"Total duration exceeds maximum of {MAX_DURATION}s "
-                f"(got {self.total_duration}s)"
+                f"Total duration exceeds maximum of {MAX_DURATION}s (got {self.total_duration}s)"
             )
 
         return self

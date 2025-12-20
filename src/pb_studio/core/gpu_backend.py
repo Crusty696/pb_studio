@@ -5,7 +5,7 @@ Vereinfachte API fuer KI-Module (YOLO, CLIP, Demucs).
 
 Usage:
     from pb_studio.core.gpu_backend import get_device, get_onnx_providers, get_backend_info
-    
+
     device = get_device()           # cuda, privateuseone:0, cpu
     providers = get_onnx_providers() # [DmlExecutionProvider, CPUExecutionProvider]
     info = get_backend_info()       # Dict mit allen Infos

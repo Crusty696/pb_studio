@@ -169,8 +169,7 @@ class MotionMusicSynchronizer:
         self.use_cross_correlation = use_cross_correlation
 
         logger.info(
-            f"MotionMusicSynchronizer initialized: "
-            f"tolerance={self.tolerance_ms}ms, DTW={use_dtw}"
+            f"MotionMusicSynchronizer initialized: tolerance={self.tolerance_ms}ms, DTW={use_dtw}"
         )
 
     def analyze_sync(
@@ -301,7 +300,7 @@ class MotionMusicSynchronizer:
 
         offset_seconds = best_lag * resolution_s
 
-        logger.debug(f"Global offset calculated: {offset_seconds*1000:.1f}ms")
+        logger.debug(f"Global offset calculated: {offset_seconds * 1000:.1f}ms")
         return offset_seconds
 
     def _find_sync_points(

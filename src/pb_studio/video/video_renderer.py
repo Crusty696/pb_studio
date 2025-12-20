@@ -1081,8 +1081,7 @@ class VideoRenderer:
         merged_ranges = self._merge_overlapping_ranges(ranges)
 
         logger.debug(
-            f"Pre-processing {clip_path.name}: "
-            f"{len(ranges)} ranges merged to {len(merged_ranges)}"
+            f"Pre-processing {clip_path.name}: {len(ranges)} ranges merged to {len(merged_ranges)}"
         )
 
         for start, end in merged_ranges:

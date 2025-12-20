@@ -336,7 +336,7 @@ class FAISSClipMatcher:
                 if fail_rate > 0.1:  # Mehr als 10% fehlgeschlagen
                     logger.warning(
                         f"KI-Embedding fehlgeschlagen für {len(ai_failed_clips)}/{len(clips)} Clips "
-                        f"({fail_rate*100:.1f}%). Fallback auf 27D für ALLE Clips."
+                        f"({fail_rate * 100:.1f}%). Fallback auf 27D für ALLE Clips."
                     )
                     use_ai_for_this_build = False
                     self.dimension = manual_dim
@@ -444,7 +444,7 @@ class FAISSClipMatcher:
         # Validate dimensions
         if embeddings_np.shape[1] != self.dimension:
             raise ValueError(
-                f"Embedding dimension mismatch: {embeddings_np.shape[1]} " f"!= {self.dimension}"
+                f"Embedding dimension mismatch: {embeddings_np.shape[1]} != {self.dimension}"
             )
 
         # Create FAISS index
@@ -707,10 +707,10 @@ class FAISSClipMatcher:
 
             logger.debug(
                 f"🔬 FAISS find_best_clip: "
-                f"Total={total_time*1000:.3f}ms "
-                f"(Query={query_time*1000:.3f}ms, "
-                f"Search={search_time*1000:.3f}ms, "
-                f"Filter={filter_time*1000:.3f}ms)"
+                f"Total={total_time * 1000:.3f}ms "
+                f"(Query={query_time * 1000:.3f}ms, "
+                f"Search={search_time * 1000:.3f}ms, "
+                f"Filter={filter_time * 1000:.3f}ms)"
             )
 
             return clip_id, metadata["file_path"], dist

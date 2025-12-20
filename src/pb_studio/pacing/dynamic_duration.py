@@ -65,7 +65,7 @@ class DynamicDurationCalculator:
 
         # Additional sanity check: BPM should be in reasonable range (30-300)
         if not (30.0 <= bpm <= 300.0):
-            logger.warning(f"BPM={bpm:.1f} outside normal range (30-300), " f"using clamped value")
+            logger.warning(f"BPM={bpm:.1f} outside normal range (30-300), using clamped value")
             bpm = max(30.0, min(300.0, bpm))
 
         self.bpm = bpm
@@ -176,9 +176,7 @@ class DynamicDurationCalculator:
         duration = beats * self.beat_duration
 
         logger.debug(
-            f"Phrase duration: segment={segment_type}, "
-            f"beats={beats}, "
-            f"duration={duration:.1f}s"
+            f"Phrase duration: segment={segment_type}, beats={beats}, duration={duration:.1f}s"
         )
 
         return duration

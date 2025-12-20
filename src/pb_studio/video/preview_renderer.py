@@ -350,7 +350,7 @@ class PreviewRenderer:
 
             if not preview_cuts:
                 logger.error(
-                    f"No cuts found in preview window " f"({start_position}s - {end_position}s)"
+                    f"No cuts found in preview window ({start_position}s - {end_position}s)"
                 )
                 return None
 

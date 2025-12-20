@@ -8,7 +8,6 @@ Zeigt:
 - Abbruch-Moeglichkeit
 """
 
-
 from PyQt6.QtCore import QObject, QThread
 from PyQt6.QtCore import pyqtSignal as Signal
 from PyQt6.QtCore import pyqtSlot as Slot

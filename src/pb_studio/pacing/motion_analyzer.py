@@ -139,9 +139,7 @@ class MotionAnalyzer:
             frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             duration = frame_count / fps if fps > 0 else 0.0
 
-            logger.debug(
-                f"Video geladen: {frame_count} frames @ {fps:.1f} fps " f"({duration:.1f}s)"
-            )
+            logger.debug(f"Video geladen: {frame_count} frames @ {fps:.1f} fps ({duration:.1f}s)")
 
             # 3. Frames samplen + Optical Flow
             motion_scores = []
@@ -306,7 +304,7 @@ class MotionAnalyzer:
         if not clip_paths:
             return []
 
-        logger.info(f"Batch-Analyse gestartet: {len(clip_paths)} clips, " f"{max_workers} workers")
+        logger.info(f"Batch-Analyse gestartet: {len(clip_paths)} clips, {max_workers} workers")
 
         # Ergebnisse mit Index speichern für korrekte Reihenfolge
         results = [None] * len(clip_paths)

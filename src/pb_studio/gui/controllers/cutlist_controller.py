@@ -8,6 +8,7 @@ VERBESSERT (2024-12): Variable Clip-Längen und intelligente Startpunkte
 - Startpunkt im Clip wird intelligent gewählt (nicht immer 0.0)
 - Bei guter Passung werden längere Clips verwendet
 """
+
 import logging
 import random
 from collections.abc import Callable

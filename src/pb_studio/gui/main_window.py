@@ -165,7 +165,8 @@ class RenderWorker(QThread):
 
             # M-02 FIX: Use throttled callback helper (DRY principle)
             pacing_progress_callback = create_throttled_pacing_callback(
-                self.progress_updated.emit, scale_max=20  # Pacing is 20% of total render progress
+                self.progress_updated.emit,
+                scale_max=20,  # Pacing is 20% of total render progress
             )
 
             cut_list = self.main_window._generate_cut_list(
@@ -1677,8 +1678,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Dear PyGui Error",
-                    "Failed to initialize Dear PyGui Timeline.\n"
-                    "Check console for error details.",
+                    "Failed to initialize Dear PyGui Timeline.\nCheck console for error details.",
                 )
 
         except Exception as e:
@@ -1727,7 +1727,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Dear PyGui Error",
-                    "Failed to initialize Dear PyGui Preview.\n" "Check console for error details.",
+                    "Failed to initialize Dear PyGui Preview.\nCheck console for error details.",
                 )
 
         except Exception as e:

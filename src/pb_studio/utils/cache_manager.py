@@ -184,7 +184,7 @@ class CacheManager:
             if deleted_count > 0:
                 logger.info(
                     f"Cache cleanup: Deleted {deleted_count} files, "
-                    f"freed {freed_bytes/1024/1024:.2f} MB"
+                    f"freed {freed_bytes / 1024 / 1024:.2f} MB"
                 )
 
         except Exception as e:
