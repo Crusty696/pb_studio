@@ -406,6 +406,8 @@ class ClipLibraryWidget(QWidget):
 
         # Import button
         import_button = QPushButton("+ Import Clips")
+        import_button.setToolTip("Import video files from disk")
+        import_button.setAccessibleName("Import Clips Button")
         import_button.clicked.connect(self._import_clips)
         import_button.setMaximumWidth(120)
         header_layout.addWidget(import_button)
