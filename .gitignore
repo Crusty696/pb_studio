@@ -40,11 +40,18 @@ exports/*
 temp/
 cache/
 .archive/
+.swarm/
+trigger_cache/
+video_cache/
+segment_cache/
 
 # Datenbank-Dateien
 data/*.db
+data/*.db-shm
+data/*.db-wal
 data/*.duckdb
 data/ai_models/
+data/*_cache.json
 
 # --- System- und Editor-Dateien ---
 # Windows Desktop-Verknüpfungen

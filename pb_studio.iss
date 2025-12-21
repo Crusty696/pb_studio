@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "PB_studio"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "PB_studio Dev Team"
 #define MyAppURL "https://github.com/pb-studio"
 #define MyAppExeName "PB_studio.exe"
@@ -23,7 +23,7 @@ DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputDir=setup
-OutputBaseFilename=PB_studio_Setup
+OutputBaseFilename=PB_studio_V2_Setup
 SetupIconFile=src\pb_studio\resources\icons\app_icon.ico
 Compression=lzma
 SolidCompression=yes
@@ -48,3 +48,15 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    MsgBox('PB Studio V2 Update installed.' #13#10 #13#10 +
+           'IMPORTANT: Please ensure you have the latest drivers installed for your GPU:' #13#10 +
+           '- NVIDIA: Latest Game Ready Driver' #13#10 +
+           '- AMD: Latest Adrenalin Driver (for DirectML support)', mbInformation, MB_OK);
+  end;
+end;

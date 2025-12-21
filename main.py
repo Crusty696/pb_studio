@@ -35,15 +35,29 @@ def main():
     """
     Main application entry point.
 
-    Initializes:
-    - Logging system
-    - Configuration
-    - PyQt6 application
-    - Main window
+    Run Sequence:
+    1. Hardware Bootstrapper (Critical)
+    2. Startup Cleanup
+    3. Logging Setup
+    4. Config Loading
+    5. GUI Launch
 
     Returns:
         Exit code (0 = success)
     """
+    # 1. Run Hardware Bootstrapper
+    try:
+        from pb_studio.bootstrapper import Bootstrapper
+        boot = Bootstrapper()
+        if not boot.run():
+            print("CRITICAL: Bootstrapper validation failed.")
+            sys.exit(1)
+    except Exception as e:
+        print(f"CRITICAL: Bootstrapper failed unexpectedly: {e}")
+        # Continue with caution or exit? 
+        # For now, we print and continue, relying on fallback logic.
+        
+
     # Setup logging
     # Note: Cleanup runs BEFORE logging to ensure logs are cleared if requested
     # and to provide a truly fresh state.

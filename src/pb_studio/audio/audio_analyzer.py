@@ -188,7 +188,7 @@ class AudioAnalyzer:
                     # icacls setzt Berechtigungen: (OI)(CI)F = Vollzugriff für aktuellen User
                     # /inheritance:r = Entfernt vererbte Berechtigungen
                     subprocess.run(
-                        ["icacls", str(self.cache_dir), "/inheritance:r", "/grant:r", 
+                        ["icacls", str(self.cache_dir), "/inheritance:r", "/grant:r",
                          f"{os.environ.get('USERNAME', 'CURRENT_USER')}:(OI)(CI)F"],
                         check=False,
                         capture_output=True,

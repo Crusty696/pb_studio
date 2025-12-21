@@ -95,10 +95,11 @@ logger = logging.getLogger(__name__)
 
 # SEC-06 FIX: FFmpeg timeout constants (prevents hanging processes)
 # FIX: These constants are now ACTIVELY USED via _run_ffmpeg_with_timeout()
-FFMPEG_TIMEOUT_SEGMENT = 300  # 5 minutes per segment
-FFMPEG_TIMEOUT_CONCAT = 1800  # 30 minutes for concatenation (1h videos)
-FFMPEG_TIMEOUT_PREVIEW = 120  # 2 minutes for preview generation
-FFMPEG_TIMEOUT_PROBE = 30  # 30 seconds for ffprobe metadata
+# UPDATED: Increased timeouts for 2-3 hour video support
+FFMPEG_TIMEOUT_SEGMENT = 600  # 10 minutes per segment (for 4K/slow clips)
+FFMPEG_TIMEOUT_CONCAT = 10800  # 3 hours for concatenation (supports 2-3h videos)
+FFMPEG_TIMEOUT_PREVIEW = 300  # 5 minutes for preview generation
+FFMPEG_TIMEOUT_PROBE = 60  # 60 seconds for ffprobe metadata (large files)
 
 
 class RenderSettings(BaseModel):
@@ -195,10 +196,11 @@ class VideoRenderer:
     ENCODER_TEST_TIMEOUT_SEC = 15  # Timeout for GPU encoder validation tests
 
     # FFmpeg Operation Timeouts (in seconds)
-    SEGMENT_EXTRACT_TIMEOUT_SEC = 300  # 5 min per segment (generous for slow clips)
-    CONCAT_TIMEOUT_SEC = 1800  # 30 min for concatenation (long videos)
-    AUDIO_MERGE_TIMEOUT_SEC = 600  # 10 min for audio merge
-    BLACK_SEGMENT_TIMEOUT_SEC = 60  # 1 min for black frame generation
+    # UPDATED: Increased for 2-3 hour video support
+    SEGMENT_EXTRACT_TIMEOUT_SEC = 600  # 10 min per segment (for 4K/slow clips)
+    CONCAT_TIMEOUT_SEC = 10800  # 3 hours for concatenation (supports 2-3h videos)
+    AUDIO_MERGE_TIMEOUT_SEC = 3600  # 60 min for audio merge (3h audio files)
+    BLACK_SEGMENT_TIMEOUT_SEC = 120  # 2 min for black frame generation
 
     # Optimal Worker Counts (based on hardware encoder limits)
     WORKERS_QSV = 2  # Intel QSV: Max 2-3 parallel encoding streams

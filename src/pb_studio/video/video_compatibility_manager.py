@@ -284,7 +284,7 @@ class VideoPreprocessor:
             if remaining > 0:
                 uniform_step = total_frames / remaining
                 uniform_frames = [int(i * uniform_step) for i in range(remaining)]
-                all_frames = sorted(list(set(key_frames + uniform_frames)))
+                all_frames = sorted(set(key_frames + uniform_frames))
                 return all_frames[:max_frames]
             else:
                 return key_frames

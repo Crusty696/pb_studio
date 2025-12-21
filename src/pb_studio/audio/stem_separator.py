@@ -415,15 +415,20 @@ class StemSeparator:
             self.STEM_MODELS = self.preset_config["models"]
 
     def _detect_directml(self) -> tuple[bool, str]:
-        if os.environ.get("USE_DIRECTML_STEMS", "0") != "1":
+        # Always allow DirectML if the package is installed, unless explicitly disabled
+        if os.environ.get("USE_DIRECTML_STEMS", "1") == "0":
             return False, "env_disabled"
+
         try:
             import onnxruntime as ort
 
-            if "DmlExecutionProvider" in ort.get_available_providers():
+            # Check if DmlExecutionProvider is available in the installed onnxruntime
+            available_providers = ort.get_available_providers()
+            if "DmlExecutionProvider" in available_providers:
                 if self._test_directml_compatibility():
                     return True, "available_tested"
                 return False, "compatibility_test_failed"
+                
             return False, "provider_missing"
         except ImportError:
             return False, "ort_missing"

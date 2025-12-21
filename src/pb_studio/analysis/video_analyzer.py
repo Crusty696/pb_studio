@@ -961,6 +961,7 @@ class VideoAnalyzer:
         status.mood_analyzed = "mood" in results
         status.objects_analyzed = "objects" in results
         status.style_analyzed = "style" in results
+        status.fingerprint_created = "phash" in results or "dhash" in results
         status.vector_extracted = "embedding_path" in results or "feature_vector" in results
         status.last_full_analysis = datetime.utcnow()
         status.colors_version = self.VERSIONS["colors"]

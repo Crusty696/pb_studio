@@ -169,8 +169,19 @@ class GUILogHandler(logging.Handler):
             msg = self.format(record)
             level = record.levelname
 
-            # Signal emittieren (Thread-safe)
-            self.log_signal.new_log.emit(msg, level)
+            # Prüfen ob das Qt-Objekt noch existiert (wichtig beim App-Shutdown)
+            try:
+                # Teste ob das Signal-Objekt noch gültig ist
+                if self.log_signal is None:
+                    return
+                # Versuche auf das Signal zuzugreifen - wirft RuntimeError wenn gelöscht
+                _ = self.log_signal.new_log
+                # Signal emittieren (Thread-safe)
+                self.log_signal.new_log.emit(msg, level)
+            except RuntimeError:
+                # Qt-Objekt wurde bereits gelöscht (App schließt)
+                pass
 
         except Exception:
-            self.handleError(record)
+            # Nur handleError aufrufen wenn nicht durch Qt-Shutdown verursacht
+            pass

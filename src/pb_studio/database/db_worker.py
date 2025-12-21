@@ -13,7 +13,7 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy.sql.expression import true, false  # FIX H-02/H-03: SQLAlchemy Boolean Best Practice
+from sqlalchemy.sql.expression import false, true  # FIX H-02/H-03: SQLAlchemy Boolean Best Practice
 
 from ..utils.logger import get_logger
 from .models import VideoClip

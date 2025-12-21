@@ -55,6 +55,7 @@ from pb_studio.gui.controllers import (
 )
 from pb_studio.gui.controllers.audio_analysis_controller import AudioAnalysisController
 from pb_studio.gui.dearpygui_bridge import DearPyGuiBridge
+from pb_studio.gui.dialogs.keyframe_export_dialog import KeyframeExportDialog
 from pb_studio.gui.dialogs.project_dialog import ProjectDialog
 from pb_studio.gui.dialogs.project_selector import ProjectSelector
 from pb_studio.gui.keyboard_shortcuts import KeyboardShortcutManager
@@ -532,6 +533,11 @@ class MainWindow(QMainWindow):
         export_action.triggered.connect(self.export_video)
         file_menu.addAction(export_action)
 
+        export_keyframes_action = QAction("Export &Keyframes...", self)
+        export_keyframes_action.setToolTip("Export Deforum-style animation strings based on beats")
+        export_keyframes_action.triggered.connect(self.export_keyframes)
+        file_menu.addAction(export_keyframes_action)
+
         file_menu.addSeparator()
 
         exit_action = QAction("E&xit", self)
@@ -798,6 +804,16 @@ class MainWindow(QMainWindow):
         # Verbinde Menu-Action mit ShortcutManager (wurde in _create_menu_bar() erstellt)
         if hasattr(self, "shortcuts_action"):
             self.shortcuts_action.triggered.connect(self.shortcut_manager.show_help)
+
+    def export_keyframes(self):
+        """Open the Keyframe Export Dialog."""
+        if not self.current_project_id:
+            QMessageBox.warning(self, "No Project", "Please open a project first.")
+            return
+
+        dialog = KeyframeExportDialog(self, project_id=self.current_project_id)
+        dialog.exec()
+
 
         # Installiere alle Shortcuts
         self.shortcut_manager.install_all()

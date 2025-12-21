@@ -145,6 +145,8 @@ def migrate_to_v2(db_path: Path | None = None, create_backup_first: bool = True)
 
         new_columns = [
             ("content_fingerprint", "TEXT"),  # UNIQUE via Index, nicht ALTER TABLE
+            ("vision_description", "TEXT"),
+            ("story_role", "TEXT"),
             ("original_path", "TEXT"),
             ("is_available", "BOOLEAN DEFAULT 1"),
             ("last_seen_at", "TIMESTAMP"),

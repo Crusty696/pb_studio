@@ -373,7 +373,7 @@ class AIEnhancedPacingEngine:
             cut_points.extend(scene_transitions)
 
             # Sort and deduplicate
-            cut_points = sorted(list(set(cut_points)))
+            cut_points = sorted(set(cut_points))
 
             return cut_points[:20]  # Limit to 20 cut points
 

@@ -50,6 +50,7 @@ class ModelType(Enum):
     # Specialized
     OBJECT_DETECTION = "object_detection"  # YOLO, DETR
     MOTION_ANALYSIS = "motion_analysis"  # Motion detection
+    TEXT_GENERATION = "text_generation"  # LLMs (Phi-3, etc.)
 
 
 class ModelPrecision(Enum):
@@ -58,6 +59,7 @@ class ModelPrecision(Enum):
     FP32 = "fp32"
     FP16 = "fp16"
     INT8 = "int8"
+    INT4 = "int4"
     DYNAMIC = "dynamic"
 
 
@@ -363,6 +365,51 @@ class ModelRegistry:
             )
         )
 
+        # === STORY INTELLIGENCE (V2) ===
+
+        # Moondream2 (Vision)
+        self.register_model(
+            ModelSpec(
+                name="moondream2_onnx",
+                model_type=ModelType.VISION_LANGUAGE,
+                framework=ModelFramework.ONNX,
+                precision=ModelPrecision.FP16,
+                memory_requirement_mb=1700,
+                inference_speed_ms=600,
+                quality_rating=0.85,
+                requires_gpu=False, # Can run CPU
+                supports_directml=True,
+                supports_cuda=True,
+                file_name="moondream2", # Folder name
+                # Xenova/moondream2 contains split ONNX files (encoder/decoder)
+                # We need the full repo or at least the onnx folder + configs
+                weights_url="hf:Xenova/moondream2"
+            )
+        )
+
+        # Phi-3 Mini (Reasoning)
+        self.register_model(
+            ModelSpec(
+                name="phi-3-mini-4k-instruct-onnx",
+                model_type=ModelType.TEXT_GENERATION,
+                framework=ModelFramework.ONNX,
+                precision=ModelPrecision.INT4, # Verified: DirectML uses INT4 AWQ
+                memory_requirement_mb=2500,
+                inference_speed_ms=1000,
+                quality_rating=0.95,
+                requires_gpu=True,
+                supports_directml=True, # Critical validation point
+                supports_cuda=False, # This specific repo is optimized for DirectML
+                file_name="phi-3-mini-4k-directml", # Folder name
+                # Use HF Repo ID with prefix to trigger snapshot_download
+                # Repo: microsoft/Phi-3-mini-4k-instruct-onnx
+                # We need the 'directml' subfolder content.
+                # Optimized approach: Download specific subfolder.
+                # URL format for internal logic: hf:microsoft/Phi-3-mini-4k-instruct-onnx|directml/*
+                weights_url="hf:microsoft/Phi-3-mini-4k-instruct-onnx|directml/*"
+            )
+        )
+
     def register_model(self, model_spec: ModelSpec):
         """Register a new model."""
         self.models[model_spec.name] = model_spec
@@ -457,18 +504,42 @@ class SmartModelSelector:
         return best_model
 
     def _is_hardware_compatible(self, model: ModelSpec) -> bool:
-        """Check if model is compatible with current hardware."""
+        """
+        Check if model is compatible with current hardware.
+        RESPECTS environment variables set by Bootstrapper!
+        """
+        # 1. Check Global Hardware Strategy (set by bootstrapper.py)
+        import os
+        forced_strategy = os.environ.get("PB_HARDWARE_STRATEGY")
+        
+        # Real hardware capabilities
         device_type = self.device_info.get("device_type", "cpu")
 
-        # GPU requirements
-        if model.requires_gpu and device_type == "cpu":
+        # If Bootstrapper says DirectML, we MUST NOT use CUDA models
+        if forced_strategy == "directml" and model.requires_gpu:
+            if not model.supports_directml:
+                return False
+
+        # If Bootstrapper says CUDA, we prioritize CUDA models
+        if forced_strategy == "cuda" and model.requires_gpu:
+            if not model.supports_cuda:
+                return False
+
+        # If Bootstrapper says CPU, disable all GPU models
+        if forced_strategy == "cpu" and model.requires_gpu:
             return False
 
-        # DirectML support
+        # --- Original Checks (Fallback/Detail) ---
+
+        # GPU requirements
+        if model.requires_gpu and device_type == "cpu" and forced_strategy != "directml":
+            return False
+
+        # DirectML support check (physical)
         if device_type == "directml" and not model.supports_directml:
             return False
 
-        # CUDA support
+        # CUDA support check (physical)
         if device_type == "cuda" and not model.supports_cuda:
             return False
 
@@ -552,11 +623,11 @@ class SmartModelSelector:
         Returns:
             True if valid, False otherwise
         """
-        spec = self.models.get(name)
+        spec = self.registry.get_model(name)
         if not spec or not spec.file_name:
             return False
 
-        model_path = self.base_dir / spec.file_name
+        model_path = self.registry.base_dir / spec.file_name
         if not model_path.exists():
             return False
 
@@ -595,7 +666,7 @@ class SmartModelSelector:
         Returns:
             Path to model file or None if failed
         """
-        spec = self.models.get(name)
+        spec = self.registry.get_model(name)
         if not spec:
             logger.error(f"Model {name} not found in registry.")
             return None
@@ -604,7 +675,7 @@ class SmartModelSelector:
             logger.warning(f"Model {name} has no download URL or filename.")
             return None  # Cannot download
 
-        target_path = self.base_dir / spec.file_name
+        target_path = self.registry.base_dir / spec.file_name
 
         if target_path.exists() and not force:
             if self.verify_model(name):
@@ -625,32 +696,73 @@ class SmartModelSelector:
             logger.error(f"Download failed for {name}: {e}")
             return None
 
-    def _download_file(self, url: str, target_path: Path) -> bool:
-        """Download file with progress logging."""
+    def _download_file(self, source: str, target_path: Path, is_repo: bool = False) -> bool:
+        """
+        Download file or repository.
+        Supports direct HTTP links and HuggingFace Hub repositories.
+        Format for HF with filter: hf:repo_id|include_pattern
+        """
         try:
-            response = requests.get(url, stream=True, timeout=30)
+            # Check if source represents a HF Repo
+            if source.startswith("hf:"):
+                # Parse Repo ID and optional pattern
+                clean_source = source.replace("hf:", "")
+                repo_id = clean_source
+                allow_patterns = None
+                
+                if "|" in clean_source:
+                    repo_id, allow_patterns = clean_source.split("|", 1)
+                
+                logger.info(f"Downloading snapshot from HuggingFace Hub: {repo_id} (Pattern: {allow_patterns})")
+                
+                try:
+                    from huggingface_hub import snapshot_download
+                    # Download whole folder structure to target_path parent
+                    # Note: local_dir should normally be the base model folder.
+                    # If target_path is a FILE path (e.g. model.onnx), we should check if we downloading a file or folder context.
+                    # For consistency with previous logic:
+                    download_dir = target_path.parent / target_path.stem
+                    
+                    snapshot_download(
+                        repo_id=repo_id,
+                        local_dir=download_dir,
+                        local_dir_use_symlinks=False,
+                        allow_patterns=allow_patterns
+                    )
+                    return True
+                except ImportError:
+                    logger.error("huggingface_hub not installed. Cannot download repository.")
+                    return False
+                except Exception as e:
+                    logger.error(f"Snapshot download failed: {e}")
+                    return False
+
+            # Fallback: Classic HTTP File Download
+
+            # Fallback: Classic HTTP File Download
+            logger.info(f"Downloading file from URL: {source}")
+            response = requests.get(source, stream=True, timeout=30)
             response.raise_for_status()
 
             total_size = int(response.headers.get("content-length", 0))
             block_size = 8192
             downloaded = 0
 
+            target_path.parent.mkdir(parents=True, exist_ok=True) # Ensure dir exists
+
             with open(target_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=block_size):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                        # Basic logging every 10MB
                         if downloaded % (10 * 1024 * 1024) < block_size:
-                            progress = (downloaded / total_size) * 100 if total_size else 0
-                            logger.debug(
-                                f"Downloading... {progress:.1f}% ({downloaded}/{total_size})"
-                            )
-
+                             progress = (downloaded / total_size) * 100 if total_size else 0
+                             logger.debug(f"Downloading... {progress:.1f}%")
             return True
+            
         except Exception as e:
             logger.error(f"Download error: {e}")
-            if target_path.exists():
+            if target_path.exists() and not target_path.is_dir():
                 target_path.unlink()
             return False
 

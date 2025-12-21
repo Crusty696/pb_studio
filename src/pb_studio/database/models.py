@@ -178,6 +178,11 @@ class VideoClip(Base):
     size_bytes = Column(Integer, nullable=True)  # Dateigrösse in Bytes
 
     # === NEUE FELDER fuer Video-Analyse System (v2) ===
+    
+    # Story Intelligence (Moondream/Phi-3)
+    vision_description = Column(Text, nullable=True)  # KI-Beschreibung der Szene
+    story_role = Column(String(50), nullable=True)     # intro, action, calm, outro
+    
     # Content Fingerprint fuer Wiedererkennung (auch nach Umbenennung/Verschiebung)
     content_fingerprint = Column(String(64), unique=True, nullable=True, index=True)
 

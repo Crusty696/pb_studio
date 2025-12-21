@@ -1,12 +1,13 @@
+import glob
+import logging
 import os
 import shutil
-import glob
 from pathlib import Path
-import logging
+
 
 def perform_startup_cleanup(root_dir: Path):
     """
-    Performs aggressive cleanup of temporary data, caches, and the database 
+    Performs aggressive cleanup of temporary data, caches, and the database
     to ensure a fresh state on application startup.
     Mimics the behavior of CLEAN_AND_START.bat.
     """

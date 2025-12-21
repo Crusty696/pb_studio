@@ -33,6 +33,16 @@ from ..utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _safe_num(value, default: float = 0.0) -> float:
+    """Safely convert value to float, returning default if None or invalid."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class ColorPaletteWidget(QFrame):
     """Widget zur Anzeige der Farbpalette."""
 
@@ -96,7 +106,10 @@ class MetricBar(QFrame):
         # Progress bar
         progress = QProgressBar()
         progress.setRange(0, 100)
-        progress.setValue(int(value / max_value * 100))
+        # FIX: Guard against None values to prevent TypeError
+        safe_value = float(value) if value is not None else 0.0
+        safe_max = float(max_value) if max_value else 1.0
+        progress.setValue(int(safe_value / safe_max * 100) if safe_max != 0 else 0)
         progress.setTextVisible(False)
         progress.setFixedHeight(12)
         # Keep functional color for chunk, but reset container
@@ -115,8 +128,10 @@ class MetricBar(QFrame):
         )
         layout.addWidget(progress)
 
-        # Value label
-        if max_value == 1.0:
+        # Value label - FIX: Guard against None values
+        if value is None:
+            value_text = "N/A"
+        elif max_value == 1.0:
             value_text = f"{value:.2f}"
         elif max_value == 255:
             value_text = f"{value:.0f}"
@@ -369,23 +384,22 @@ class ClipDetailsWidget(QWidget):
             layout.addWidget(palette)
 
         # Metriken
-        brightness_value = color_data.get("brightness_value", 0.0)
+        brightness_value = _safe_num(color_data.get("brightness_value"))
         brightness_max = (
-            255 if isinstance(brightness_value, (int, float)) and brightness_value > 2.0 else 1.0
+            255 if brightness_value > 2.0 else 1.0
         )
         layout.addWidget(
-            MetricBar("Brightness", float(brightness_value or 0.0), brightness_max, "#f1c40f")
+            MetricBar("Brightness", brightness_value, brightness_max, "#f1c40f")
         )
 
         saturation_value = color_data.get("saturation_avg", color_data.get("saturation"))
         if saturation_value is not None:
+            sat_val = _safe_num(saturation_value)
             saturation_max = (
-                255
-                if isinstance(saturation_value, (int, float)) and saturation_value > 2.0
-                else 1.0
+                255 if sat_val > 2.0 else 1.0
             )
             layout.addWidget(
-                MetricBar("Saturation", float(saturation_value), saturation_max, "#e74c3c")
+                MetricBar("Saturation", sat_val, saturation_max, "#e74c3c")
             )
 
         # Tags
@@ -437,11 +451,11 @@ class ClipDetailsWidget(QWidget):
 
         # Metriken
         layout.addWidget(
-            MetricBar("Motion Score", motion_data.get("motion_score", 0), 1.0, "#e74c3c")
+            MetricBar("Motion Score", _safe_num(motion_data.get("motion_score")), 1.0, "#e74c3c")
         )
 
         layout.addWidget(
-            MetricBar("Camera Mag.", motion_data.get("camera_magnitude", 0), 10.0, "#3498db")
+            MetricBar("Camera Mag.", _safe_num(motion_data.get("camera_magnitude")), 10.0, "#3498db")
         )
 
         # Camera Motion
@@ -494,24 +508,24 @@ class ClipDetailsWidget(QWidget):
         # Metriken
         if mood_data.get("brightness") is not None:
             layout.addWidget(
-                MetricBar("Brightness", mood_data.get("brightness", 0.0), 1.0, "#f1c40f")
+                MetricBar("Brightness", _safe_num(mood_data.get("brightness")), 1.0, "#f1c40f")
             )
         if mood_data.get("saturation") is not None:
             layout.addWidget(
-                MetricBar("Saturation", mood_data.get("saturation", 0.0), 1.0, "#e74c3c")
+                MetricBar("Saturation", _safe_num(mood_data.get("saturation")), 1.0, "#e74c3c")
             )
         if mood_data.get("contrast") is not None:
-            layout.addWidget(MetricBar("Contrast", mood_data.get("contrast", 0.0), 1.0, "#9b59b6"))
+            layout.addWidget(MetricBar("Contrast", _safe_num(mood_data.get("contrast")), 1.0, "#9b59b6"))
 
-        layout.addWidget(MetricBar("Energy", mood_data.get("energy", 0.0), 1.0, "#e74c3c"))
+        layout.addWidget(MetricBar("Energy", _safe_num(mood_data.get("energy")), 1.0, "#e74c3c"))
 
         if mood_data.get("warm_ratio") is not None:
             layout.addWidget(
-                MetricBar("Warm Ratio", mood_data.get("warm_ratio", 0.0), 1.0, "#ff5722")
+                MetricBar("Warm Ratio", _safe_num(mood_data.get("warm_ratio")), 1.0, "#ff5722")
             )
         if mood_data.get("cool_ratio") is not None:
             layout.addWidget(
-                MetricBar("Cool Ratio", mood_data.get("cool_ratio", 0.0), 1.0, "#00bcd4")
+                MetricBar("Cool Ratio", _safe_num(mood_data.get("cool_ratio")), 1.0, "#00bcd4")
             )
 
         layout.addStretch()
@@ -546,20 +560,21 @@ class ClipDetailsWidget(QWidget):
             )
 
         # Metriken
+        sharpness_val = _safe_num(style_data.get("sharpness"), 500)
         layout.addWidget(
             MetricBar(
-                "Sharpness", min(style_data.get("sharpness", 500) / 2000, 1.0), 1.0, "#3498db"
+                "Sharpness", min(sharpness_val / 2000, 1.0), 1.0, "#3498db"
             )
         )
 
-        layout.addWidget(MetricBar("Noise Level", style_data.get("noise_level", 0), 1.0, "#f39c12"))
+        layout.addWidget(MetricBar("Noise Level", _safe_num(style_data.get("noise_level")), 1.0, "#f39c12"))
 
         if style_data.get("dynamic_range") is not None:
             layout.addWidget(
-                MetricBar("Dynamic Range", style_data.get("dynamic_range", 0.0), 1.0, "#9b59b6")
+                MetricBar("Dynamic Range", _safe_num(style_data.get("dynamic_range")), 1.0, "#9b59b6")
             )
 
-        layout.addWidget(MetricBar("Vignette", style_data.get("vignette_score", 0), 1.0, "#2c3e50"))
+        layout.addWidget(MetricBar("Vignette", _safe_num(style_data.get("vignette_score")), 1.0, "#2c3e50"))
 
         layout.addStretch()
         return widget
@@ -606,16 +621,16 @@ class ClipDetailsWidget(QWidget):
 
         # Metriken
         layout.addWidget(
-            MetricBar("Edge Density", scene_data.get("edge_density", 0), 0.3, "#3498db")
+            MetricBar("Edge Density", _safe_num(scene_data.get("edge_density")), 0.3, "#3498db")
         )
 
         if scene_data.get("texture_variance") is not None:
             layout.addWidget(
-                MetricBar("Texture", scene_data.get("texture_variance", 0.0), 1.0, "#f39c12")
+                MetricBar("Texture", _safe_num(scene_data.get("texture_variance")), 1.0, "#f39c12")
             )
 
         layout.addWidget(
-            MetricBar("Depth of Field", scene_data.get("depth_of_field", 0.5), 1.0, "#9b59b6")
+            MetricBar("Depth of Field", _safe_num(scene_data.get("depth_of_field"), 0.5), 1.0, "#9b59b6")
         )
 
         layout.addStretch()
@@ -682,15 +697,15 @@ class ClipDetailsWidget(QWidget):
         # Metrics (optional)
         if objects_data.get("green_ratio") is not None:
             layout.addWidget(
-                MetricBar("Green Ratio", objects_data.get("green_ratio", 0.0), 1.0, "#27ae60")
+                MetricBar("Green Ratio", _safe_num(objects_data.get("green_ratio")), 1.0, "#27ae60")
             )
         if objects_data.get("sky_ratio") is not None:
             layout.addWidget(
-                MetricBar("Sky Ratio", objects_data.get("sky_ratio", 0.0), 1.0, "#3498db")
+                MetricBar("Sky Ratio", _safe_num(objects_data.get("sky_ratio")), 1.0, "#3498db")
             )
         if objects_data.get("symmetry") is not None:
             layout.addWidget(
-                MetricBar("Symmetry", objects_data.get("symmetry", 0.0), 1.0, "#9b59b6")
+                MetricBar("Symmetry", _safe_num(objects_data.get("symmetry")), 1.0, "#9b59b6")
             )
 
         # Content tags (includes semantic tags merged during analysis)

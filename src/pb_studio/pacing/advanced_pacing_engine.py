@@ -462,11 +462,17 @@ class AdvancedPacingEngine:
 
             # Motion & Energy Scores aus Analysis-Daten
             # BUGFIX: Worker erwartet 'motion' und 'energy', nicht '_score' Suffix!
-            analysis = clip.get("analysis", {})
-            motion_data = analysis.get("motion", {})
+            # FIX: Explizite None-Prüfung, da .get() mit Default nur greift wenn Key fehlt,
+            # nicht wenn Key existiert aber Wert None ist!
+            analysis = clip.get("analysis") or {}
+            motion_data = analysis.get("motion") or {}
 
-            clip_data["motion"] = motion_data.get("motion_score", 0.5)
-            clip_data["energy"] = analysis.get("energy_score", 0.5)
+            raw_motion = motion_data.get("motion_score")
+            raw_energy = analysis.get("energy_score")
+            
+            # Sicherstellen dass Werte float sind (nicht None)
+            clip_data["motion"] = float(raw_motion) if raw_motion is not None else 0.5
+            clip_data["energy"] = float(raw_energy) if raw_energy is not None else 0.5
             # Backward compatibility
             clip_data["motion_score"] = clip_data["motion"]
             clip_data["energy_score"] = clip_data["energy"]
