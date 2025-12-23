@@ -46,7 +46,19 @@ def _get_best_device() -> tuple[Union[str, "torch.device"], str]:
     if not AI_AVAILABLE:
         return "cpu", "CPU"
 
-    # DirectML fuer AMD GPUs (Windows)
+    # Nutze dediziertes DirectML Device (RX 7800 XT statt integrierte GPU)
+    try:
+        from ...utils.gpu_memory import get_best_directml_device
+
+        result = get_best_directml_device()
+        if result is not None:
+            device, idx, name = result
+            logger.info(f"DirectML Device verfuegbar: {name} (AMD GPU)")
+            return device, "DirectML"
+    except ImportError:
+        pass
+
+    # Fallback auf Standard torch_directml
     try:
         import torch_directml
 

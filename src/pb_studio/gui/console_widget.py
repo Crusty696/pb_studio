@@ -108,13 +108,13 @@ class ConsoleWidget(QWidget):
         """Log-Nachricht hinzufügen (Thread-safe)."""
         # Farbcodierung nach Level
         if level == "ERROR" or level == "CRITICAL":
-            color = "#f48771"  # Rot
+            color = "#f48771"  # Rot (nur für echte Fehler)
         elif level == "WARNING":
             color = "#dcdcaa"  # Gelb
         elif level == "INFO":
-            color = "#4ec9b0"  # Cyan
+            color = "#98c379"  # Grün (freundlich, kein Fehler)
         else:
-            color = "#d4d4d4"  # Weiß (DEBUG)
+            color = "#7f848e"  # Grau (DEBUG)
 
         # HTML formatieren
         html = f'<span style="color: {color};">{message}</span>'

@@ -214,10 +214,33 @@ class ParameterDashboardWidget(QWidget):
     def _apply_preset_data(self, params: dict):
         if not self.cut_parameter_panel:
             return
+
+        # Helper to safely apply scaler value
+        def apply_scaled_value(slider, value, scale_factor):
+            if isinstance(value, float):
+                # Custom presets (floats) -> scale to int
+                target = int(round(value * scale_factor))
+            elif isinstance(value, int):
+                # Built-in presets (ints) -> use directly
+                target = value
+            else:
+                return
+
+            slider.setValue(target)
+
         if "cut_duration" in params and self.cut_parameter_panel.cut_duration_slider:
-            self.cut_parameter_panel.cut_duration_slider.setValue(params["cut_duration"])
+            apply_scaled_value(
+                self.cut_parameter_panel.cut_duration_slider,
+                params["cut_duration"],
+                10.0
+            )
+
         if "tempo" in params and self.cut_parameter_panel.tempo_slider:
-            self.cut_parameter_panel.tempo_slider.setValue(params["tempo"])
+            apply_scaled_value(
+                self.cut_parameter_panel.tempo_slider,
+                params["tempo"],
+                100.0
+            )
 
     def set_bpm(self, bpm: float):
         self.current_bpm = bpm

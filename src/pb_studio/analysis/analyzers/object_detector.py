@@ -205,23 +205,32 @@ class ObjectDetector:
         try:
             import onnxruntime as ort
 
-            # Try to get model from ModelManager (auto-download if needed)
-            mm = get_model_manager()
-            model_path = mm.download_model(f"{self.model_name}_onnx")
+            # 1. Check local pre-downloaded model first
+            local_path = (
+                Path(__file__).parent.parent.parent.parent.parent
+                / "data" / "ai_models" / "onnx" / f"{self.model_name}.onnx"
+            )
+            if local_path.exists():
+                model_path = local_path
+                logger.info(f"Using local YOLO model: {model_path}")
+            else:
+                # 2. Try ModelManager (auto-download if needed)
+                mm = get_model_manager()
+                model_path = mm.download_model(f"{self.model_name}_onnx")
 
-            if model_path is None:
-                # Fallback: Check local files (legacy support)
-                legacy_path = (
-                    Path(__file__).parent.parent.parent.parent.parent / f"{self.model_name}.onnx"
-                )
-                if legacy_path.exists():
-                    model_path = legacy_path
-                else:
-                    logger.warning(
-                        f"ONNX Model '{self.model_name}' could not be loaded/downloaded."
+                if model_path is None:
+                    # 3. Fallback: Check legacy location
+                    legacy_path = (
+                        Path(__file__).parent.parent.parent.parent.parent / f"{self.model_name}.onnx"
                     )
-                    self.enabled = False
-                    return None
+                    if legacy_path.exists():
+                        model_path = legacy_path
+                    else:
+                        logger.warning(
+                            f"ONNX Model '{self.model_name}' could not be loaded/downloaded."
+                        )
+                        self.enabled = False
+                        return None
 
             logger.info(f"Loading YOLO model from: {model_path}")
 

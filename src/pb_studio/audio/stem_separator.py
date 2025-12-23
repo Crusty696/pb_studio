@@ -55,6 +55,19 @@ MAX_AUDIO_SIZE_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 def _get_best_device() -> tuple[str | Any, str]:
     """Ermittelt das beste verfuegbare Device fuer Demucs."""
+    # Nutze dediziertes DirectML Device (RX 7800 XT statt integrierte GPU)
+    try:
+        from ..utils.gpu_memory import get_best_directml_device
+
+        result = get_best_directml_device()
+        if result is not None:
+            device, idx, name = result
+            logger.info(f"DirectML Device verfuegbar: {name} (AMD GPU)")
+            return device, "DirectML"
+    except ImportError:
+        pass
+
+    # Fallback auf Standard torch_directml
     try:
         import torch_directml
 
@@ -394,6 +407,13 @@ class StemSeparator:
             self.model_preset = "htdemucs"
 
         self._load_preset_config()
+        
+        # Dedizierte GPU für DirectML erzwingen (RX 7800 XT statt integrierte GPU)
+        self._dedicated_gpu_idx = self._get_dedicated_gpu_index()
+        if self._dedicated_gpu_idx is not None:
+            os.environ["DML_VISIBLE_DEVICES"] = str(self._dedicated_gpu_idx)
+            _log_stem(f"DML_VISIBLE_DEVICES={self._dedicated_gpu_idx} gesetzt (dedizierte GPU)")
+        
         self.use_directml, self.directml_reason = self._detect_directml()
         self._separator = None
 
@@ -407,6 +427,20 @@ class StemSeparator:
         _log_stem(
             f"StemSeparator initialized: Preset={self.model_preset}, DirectML={self.use_directml}"
         )
+    
+    def _get_dedicated_gpu_index(self) -> int | None:
+        """Findet den Index der dedizierten AMD GPU (RX-Karten bevorzugt)."""
+        try:
+            from ..utils.gpu_memory import get_best_directml_device
+            
+            result = get_best_directml_device()
+            if result is not None:
+                _, idx, name = result
+                _log_stem(f"Dedizierte GPU gefunden: {name} (Index {idx})")
+                return idx
+        except Exception as e:
+            logger.debug(f"GPU-Index Erkennung fehlgeschlagen: {e}")
+        return None
 
     def _load_preset_config(self):
         self.preset_config = self.STEM_MODEL_PRESETS[self.model_preset]
@@ -519,8 +553,19 @@ class StemSeparator:
                 )
                 self._separator.use_cuda = "CUDAExecutionProvider" in providers
             except ImportError as e:
+                msg = str(e)
+                if "DLL load failed" in msg and "onnxruntime" in msg:
+                    error_msg = (
+                        "CRITICAL: ONNX Runtime DLL load failed. This usually means "
+                        "Microsoft Visual C++ Redistributable is missing.\n"
+                        "Please install 'vc_redist.x64.exe' from Microsoft."
+                    )
+                    _log_stem(f"audio-separator error: {error_msg}", "ERROR")
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg) from e
+                
                 _log_stem(f"audio-separator not found: {e}", "ERROR")
-                raise RuntimeError("audio-separator missing")
+                raise RuntimeError(f"audio-separator missing: {e}")
         return self._separator
 
     def _get_stable_providers(self, force_cpu: bool = False) -> list[str]:
@@ -700,6 +745,8 @@ class StemSeparator:
         result: dict[str, Path],
         progress_callback: Callable[[str, float], None] | None = None,
     ) -> dict[str, Path]:
+        import gc
+        import time
         import shutil
 
         chunk_temp_dir = stem_dir / "_chunks_temp"
@@ -742,18 +789,41 @@ class StemSeparator:
                             if not op.is_absolute():
                                 op = output_dir / op
                             if op.exists():
-                                op.unlink()
-                    except Exception:
-                        pass
+                                try:
+                                    op.unlink()
+                                except PermissionError:
+                                    pass  # Will be cleaned up later
+                    except Exception as e:
+                        _log_stem(f"Chunk {chunk_idx} separation failed: {e}", "WARNING")
+                    finally:
+                        # FIX WinError 32: Force file handle release after each chunk
+                        gc.collect()
+                        time.sleep(0.1)  # Give Windows filesystem time to release handles
+
+                # Nach jedem Stem: alle Handles freigeben
+                gc.collect()
+                time.sleep(0.1)  # Kurze Pause für Windows File-System
 
                 if stem_chunk_outputs:
                     final_stem_path = self._get_cache_path(audio_hash, stem)
                     self._merge_stem_chunks(stem_chunk_outputs, final_stem_path)
                     result[stem] = final_stem_path
+                    _log_stem(f"Stem '{stem}' erfolgreich extrahiert und zusammengefügt")
 
         finally:
-            if chunk_temp_dir.exists():
-                shutil.rmtree(chunk_temp_dir)
+            # Robustes Cleanup mit Retry für Windows-Dateisperren
+            gc.collect()
+            for retry in range(5):
+                try:
+                    if chunk_temp_dir.exists():
+                        shutil.rmtree(chunk_temp_dir)
+                    break
+                except PermissionError as e:
+                    _log_stem(f"Cleanup retry {retry + 1}/5: {e}", "WARNING")
+                    time.sleep(0.5 * (retry + 1))
+                    gc.collect()
+            else:
+                _log_stem(f"Konnte temp-Verzeichnis nicht löschen: {chunk_temp_dir}", "WARNING")
 
         return result
 

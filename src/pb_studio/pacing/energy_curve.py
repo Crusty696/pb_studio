@@ -505,8 +505,11 @@ class EnergyBasedPacingEngine:
         cuts: list[CutListEntry] = []
         current_time = 0.0
         clip_index = 0
+        max_iterations = 10000  # Sicherheitslimit gegen Endlosschleifen
+        iteration_count = 0
 
-        while current_time < self.energy_curve.duration:
+        while current_time < self.energy_curve.duration and iteration_count < max_iterations:
+            iteration_count += 1
             # Get energy zone at current time
             zone = self.energy_curve.get_energy_zone(current_time, energy_thresholds)
 
@@ -529,9 +532,21 @@ class EnergyBasedPacingEngine:
             if end_time > self.energy_curve.duration:
                 end_time = self.energy_curve.duration
 
+            # FIX: Garantierter Fortschritt - mindestens min_cut_duration voranschreiten
+            if end_time <= current_time:
+                logger.warning(
+                    f"Kein Fortschritt bei Zeit {current_time:.3f}s erkannt, "
+                    f"erzwinge Fortschritt um min_cut_duration"
+                )
+                end_time = current_time + min_cut_duration
+                if end_time > self.energy_curve.duration:
+                    break  # Am Ende angekommen
+
             # Skip if too short
             if end_time - current_time < 0.1:
-                break
+                logger.debug(f"Cut zu kurz ({end_time - current_time:.3f}s), überspringe")
+                current_time = end_time  # Trotzdem voranschreiten!
+                continue
 
             # Select clip from pool (cycle through)
             clip_id = clip_pool[clip_index % len(clip_pool)]
@@ -548,6 +563,13 @@ class EnergyBasedPacingEngine:
 
             # Advance time
             current_time = end_time
+
+        # Warnung bei Erreichen des Sicherheitslimits
+        if iteration_count >= max_iterations:
+            logger.warning(
+                f"Sicherheitslimit von {max_iterations} Iterationen erreicht - "
+                f"Schleife abgebrochen bei Zeit {current_time:.3f}s"
+            )
 
         logger.info(f"Generated {len(cuts)} energy-driven cuts")
 

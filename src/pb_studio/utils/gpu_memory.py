@@ -57,6 +57,98 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Bekannte AMD GPUs mit VRAM (Fallback wenn WMI versagt)
+# Format: "modellname_keyword": VRAM_in_bytes
+KNOWN_AMD_VRAM = {
+    "7900 xtx": 24 * 1024**3,
+    "7900 xt": 20 * 1024**3,
+    "7900 gre": 16 * 1024**3,
+    "7800 xt": 16 * 1024**3,
+    "7700 xt": 12 * 1024**3,
+    "7600": 8 * 1024**3,
+    "6950 xt": 16 * 1024**3,
+    "6900 xt": 16 * 1024**3,
+    "6800 xt": 16 * 1024**3,
+    "6800": 16 * 1024**3,
+    "6750 xt": 12 * 1024**3,
+    "6700 xt": 12 * 1024**3,
+    "6650 xt": 8 * 1024**3,
+    "6600 xt": 8 * 1024**3,
+    "6600": 8 * 1024**3,
+}
+
+
+def get_best_directml_device() -> tuple[Any, int, str] | None:
+    """
+    Findet das beste DirectML Device (dedizierte GPU bevorzugt).
+
+    Strategie:
+    1. Iteriere alle DirectML Devices
+    2. Bevorzuge dedizierte GPUs (RX, enthält "XT" oder VRAM in Lookup)
+    3. Fallback: Device mit höchstem geschätzten VRAM
+
+    Returns:
+        Tuple (device, device_index, device_name) oder None wenn nicht verfügbar
+    """
+    try:
+        import torch_directml
+
+        if not torch_directml.is_available():
+            return None
+
+        device_count = torch_directml.device_count()
+        if device_count == 0:
+            return None
+
+        best_device = None
+        best_index = 0
+        best_name = ""
+        best_score = -1  # Score: höher = besser
+
+        for i in range(device_count):
+            name = torch_directml.device_name(i)
+            name_lower = name.lower() if name else ""
+
+            # Score berechnen: Dedizierte GPUs bekommen höheren Score
+            score = 0
+
+            # RX-Karten sind dediziert (RX 7800 XT, RX 6800 etc.)
+            if " rx " in name_lower or name_lower.startswith("rx "):
+                score += 1000
+
+            # XT-Suffix = höhere Leistungsklasse
+            if " xt" in name_lower:
+                score += 100
+
+            # VRAM aus Lookup-Tabelle als zusätzlicher Score
+            for model_key, vram in KNOWN_AMD_VRAM.items():
+                if model_key in name_lower:
+                    score += vram // (1024**3)  # GB als Score
+                    break
+
+            # Integrierte GPUs ("Graphics" ohne RX) niedrigerer Score
+            if "graphics" in name_lower and "rx" not in name_lower:
+                score -= 500
+
+            logger.debug(f"DirectML Device {i}: {name} (Score: {score})")
+
+            if score > best_score:
+                best_score = score
+                best_device = torch_directml.device(i)
+                best_index = i
+                best_name = name
+
+        if best_device is not None:
+            logger.info(f"Bestes DirectML Device gewählt: {best_name} (Index {best_index})")
+            return best_device, best_index, best_name
+
+    except ImportError:
+        logger.debug("torch_directml nicht installiert")
+    except Exception as e:
+        logger.warning(f"DirectML Device-Erkennung fehlgeschlagen: {e}")
+
+    return None
+
 
 def get_memory_reserve() -> float:
     """
@@ -510,6 +602,15 @@ def _get_wmi_video_controllers() -> list[dict[str, Any]] | None:
                 if cand and cand > 0:
                     vram = int(cand)
                     break
+
+            # FIX: Falls WMI kein VRAM liefert, nutze Lookup-Tabelle
+            if not vram and name:
+                name_lower = name.lower()
+                for model_key, known_vram in KNOWN_AMD_VRAM.items():
+                    if model_key in name_lower:
+                        vram = known_vram
+                        logger.info(f"VRAM aus Lookup-Tabelle: {name} -> {vram / 1e9:.0f} GB")
+                        break
 
             if vram:
                 logger.debug(f"WMI GPU gefunden: {name}, VRAM: {vram / 1e9:.2f} GB")

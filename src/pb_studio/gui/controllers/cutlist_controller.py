@@ -724,10 +724,23 @@ class CutListController:
         )
 
         # Determine target duration
+        # FIX: Get actual audio duration instead of defaulting to 120s
         if duration_limit:
             target_duration = duration_limit
         else:
-            target_duration = self.main_window.timeline_widget.duration or 120.0
+            # Try to get from timeline widget first
+            target_duration = self.main_window.timeline_widget.duration
+            
+            # If timeline duration not set, read from audio file directly
+            if not target_duration or target_duration <= 0:
+                try:
+                    import librosa
+                    audio_duration = librosa.get_duration(path=audio_path)
+                    target_duration = audio_duration
+                    logger.info(f"Audio duration from file: {target_duration:.1f}s")
+                except Exception as e:
+                    logger.warning(f"Could not read audio duration: {e}, using 120s fallback")
+                    target_duration = 120.0
 
         # DEBUG: Log duration_limit value
         logger.info(f"[DEBUG] duration_limit={duration_limit}, target_duration={target_duration}")

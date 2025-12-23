@@ -955,14 +955,21 @@ class VideoAnalyzer:
             status = ClipAnalysisStatus(clip_id=clip_id)
             session.add(status)
 
-        status.colors_analyzed = "colors" in results
-        status.motion_analyzed = "motion" in results
-        status.scene_analyzed = "scene" in results
-        status.mood_analyzed = "mood" in results
-        status.objects_analyzed = "objects" in results
-        status.style_analyzed = "style" in results
-        status.fingerprint_created = "phash" in results or "dhash" in results
-        status.vector_extracted = "embedding_path" in results or "feature_vector" in results
+        status.colors_analyzed = "colors" in results and "error" not in str(results.get("colors", {}))
+        status.motion_analyzed = "motion" in results and "error" not in str(results.get("motion", {}))
+        status.scene_analyzed = "scene" in results and "error" not in str(results.get("scene", {}))
+        status.mood_analyzed = "mood" in results and "error" not in str(results.get("mood", {}))
+        status.objects_analyzed = "objects" in results and "error" not in str(results.get("objects", {}))
+        status.style_analyzed = "style" in results and "error" not in str(results.get("style", {}))
+        # FIX: Check for valid data, not just key existence
+        # phash/dhash can be either a hash string or {"error": str} from _safe_analyze
+        phash_valid = results.get("phash") and not isinstance(results.get("phash"), dict)
+        dhash_valid = results.get("dhash") and not isinstance(results.get("dhash"), dict)
+        status.fingerprint_created = phash_valid or dhash_valid
+        # vector_extracted: embedding_path is a string, feature_vector is np.ndarray or list
+        embedding_valid = results.get("embedding_path") and isinstance(results.get("embedding_path"), str)
+        feature_valid = results.get("feature_vector") is not None and not isinstance(results.get("feature_vector"), dict)
+        status.vector_extracted = embedding_valid or feature_valid
         status.last_full_analysis = datetime.utcnow()
         status.colors_version = self.VERSIONS["colors"]
         status.motion_version = self.VERSIONS["motion"]

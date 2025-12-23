@@ -24,6 +24,7 @@ audio-separator = "^0.17.0"
 librosa = "^0.10.1"
 # essentia-tensorflow = "^2.1b6"  # Wird spÃ¤ter manuell installiert (Windows-kompatibilitÃ¤tsprobleme)
 soundfile = "^0.12.1"
+onnx = {version = "^1.14.0", optional = true}  # Für audio-separator Model-Validierung
 numpy = ">=1.26,<2.0"  # Torch/Numba kompatibel, vermeidet NumPy 2 ABI-Bruch
 
 # Vector Search - Multi-Platform Support (choose one or let auto-detection handle it)
@@ -93,9 +94,9 @@ cuda = ["torch", "demucs"]
 
 # KI-Video-Analyse (X-CLIP 512D Embeddings)
 ai-video = ["torch", "av", "accelerate", "onnxruntime-gpu"]  # VollstÃ¤ndig mit GPU (CUDA/DirectML)
-ai-cpu = ["av", "onnxruntime"]  # Nur CPU/AMD (transformers ist Basis-Dependency)
-ai-nvidia = ["torch", "av", "accelerate", "onnxruntime-gpu"]  # NVIDIA-spezifisch
-ai-amd = ["av", "accelerate", "onnxruntime-directml", "torch-directml"]  # AMD/DirectML inkl. Torch-DirectML
+ai-cpu = ["av", "onnxruntime", "onnx"]  # Nur CPU/AMD (transformers ist Basis-Dependency)
+ai-nvidia = ["torch", "av", "accelerate", "onnxruntime-gpu", "onnx"]  # NVIDIA-spezifisch
+ai-amd = ["av", "accelerate", "onnxruntime-directml", "torch-directml", "onnx"]  # AMD/DirectML inkl. Torch-DirectML
 # CLIP Videoanalyse (OpenAI CLIP)
 clip-video = ["clip", "torch"]
 
