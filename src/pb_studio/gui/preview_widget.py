@@ -24,6 +24,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from pb_studio.utils.video_utils import create_video_capture
+
 logger = logging.getLogger(__name__)
 
 
@@ -111,12 +113,17 @@ class PreviewWidget(QWidget):
             logger.error(f"Video not found: {video_path}")
             return False
 
-        # FIX #3: Thread-Safety - Lock für VideoCapture-Operationen
+        # FIX #3: Thread-Safety - Lock for VideoCapture operations
         with self._cap_lock:
             if self.cap:
                 self.cap.release()
 
-            self.cap = cv2.VideoCapture(str(video_path))
+            # FIX: Use centralized capture creation (HW accel support)
+            try:
+                self.cap = create_video_capture(video_path)
+            except Exception as e:
+                logger.error(f"Failed to create VideoCapture: {e}")
+                return False
 
             if not self.cap.isOpened():
                 logger.error(f"Failed to open video: {video_path}")
@@ -139,16 +146,26 @@ class PreviewWidget(QWidget):
         if not self.cap:
             return
 
-        # FIX #3: Thread-Safety - Lock für alle VideoCapture-Operationen
+        # FIX #3: Thread-Safety - Lock for all VideoCapture operations
         with self._cap_lock:
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-            ret, frame = self.cap.read()
+            try:
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                ret, frame = self.cap.read()
 
-            if not ret:
+                if not ret:
+                    # Log only once to avoid spamming
+                    if frame_number == 0:
+                        logger.warning(f"Failed to read frame {frame_number}")
+                    return
+
+                # Convert BGR to RGB (inside lock as frame data is used)
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            except cv2.error as e:
+                logger.error(f"OpenCV error reading frame {frame_number}: {e}")
                 return
-
-            # Convert BGR to RGB (innerhalb Lock, da frame-Daten noch verwendet werden)
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            except Exception as e:
+                logger.error(f"Unexpected error reading frame {frame_number}: {e}")
+                return
 
         # QImage-Erstellung und UI-Update außerhalb des Locks (nicht VideoCapture-abhängig)
         # FIX M-02: Erstelle explizite Kopie der Daten für Memory-Safety

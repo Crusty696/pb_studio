@@ -17,6 +17,7 @@ Overnight Development Features:
 """
 
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -201,7 +202,7 @@ class AIEnhancedPacingEngine:
 
             # 2. Scene-Aware Analysis
             dominant_scenes, scene_transitions, mood_consistency = self._analyze_scenes(
-                video_features
+                video_path, video_features
             )
 
             # 3. AI Cut Point Generation
@@ -325,17 +326,34 @@ class AIEnhancedPacingEngine:
 
         return final_cuts
 
-    def _analyze_scenes(self, video_features: dict[str, Any]) -> tuple[list[str], list[float], str]:
-        """Analyze video scenes for pacing decisions."""
+    def _analyze_scenes(self, video_path: str, video_features: dict[str, Any]) -> tuple[list[str], list[float], str]:
+        """Analyze video scenes for pacing decisions using PySceneDetect."""
         try:
-            # Extract dominant scenes
+            # Extract dominant scenes from tags
             tags = video_features.get("tags", ["unknown"])
             dominant_scenes = tags[:3] if isinstance(tags, list) else ["unknown"]
 
-            # TODO: Implement actual scene transition detection
-            # For now, use placeholder logic
             scene_transitions = []
-            mood_consistency = "consistent"
+            
+            # INTEGRATION: Use PySceneDetect if available
+            try:
+                from scenedetect import detect, ContentDetector
+                
+                logger.info(f"Detecting scenes in: {video_path}")
+                scene_list = detect(video_path, ContentDetector(threshold=27.0))
+                
+                for i, scene in enumerate(scene_list):
+                    # scene is tuple (start_time, end_time)
+                    # We take the start of each scene (except the very first frame)
+                    start_sec = scene[0].get_seconds()
+                    if start_sec > 0.1:
+                        scene_transitions.append(start_sec)
+                
+                logger.info(f"Detected {len(scene_transitions)} scene transitions via scenedetect")
+            except ImportError:
+                logger.warning("scenedetect not installed. Skipping real scene detection.")
+            except Exception as e:
+                logger.warning(f"Scene detection failed: {e}")
 
             # Determine mood consistency based on scene variety
             if len(set(dominant_scenes)) == 1:
@@ -448,32 +466,72 @@ class AIEnhancedPacingEngine:
             return 0.5
 
     def _generate_base_cuts(
-        self, audio_path: str, total_duration: float, ai_analysis: AIPacingAnalysisResult
+        self, audio_path: str, total_duration: float, ai_analysis: AIPacingAnalysisResult 
     ) -> list[PacingCut]:
-        """Generate base cuts using traditional pacing engine."""
+        """Generate base cuts using actual audio triggers (Beats, Kicks, Energy)."""
         try:
-            # Configure base engine based on AI recommendations
-            pacing_mode = self._map_strategy_to_mode(ai_analysis.recommended_strategy)
-
-            # TODO: Configure base engine with AI recommendations
-            # For now, return placeholder cuts
-
+            logger.info(f"Generating base cuts for {Path(audio_path).name} using real audio triggers")
+            
+            # Initialize TriggerSystem
+            # Note: We use stems if available
+            use_stems = os.environ.get("PB_USE_STEMS", "0") == "1"
+            trigger_system = TriggerSystem(use_stems=use_stems)
+            
+            # Analyze audio triggers
+            triggers = trigger_system.analyze_triggers(
+                audio_path, 
+                expected_bpm=ai_analysis.audio_features.get("bpm")
+            )
+            
             cuts = []
-            cut_interval = 3.0  # 3 second intervals
-
-            for i, timestamp in enumerate(np.arange(0, total_duration, cut_interval)):
-                if timestamp >= total_duration:
+            
+            # 1. Primary Cuts: Beat-based (The solid foundation)
+            for t in triggers.beat_times:
+                if t >= total_duration:
                     break
+                cuts.append(PacingCut(
+                    timestamp=float(t),
+                    intensity=0.6,
+                    trigger_type="beat",
+                    confidence=0.9
+                ))
+                
+            # 2. Kick-based Cuts (High intensity points)
+            for t in triggers.kick_times:
+                if t >= total_duration:
+                    break
+                # Only add if not already covered by a beat (approx 50ms window)
+                if not any(abs(c.timestamp - t) < 0.05 for c in cuts):
+                    cuts.append(PacingCut(
+                        timestamp=float(t),
+                        intensity=0.8,
+                        trigger_type="kick",
+                        confidence=0.85
+                    ))
+            
+            # 3. Energy-Peak Cuts (Dramatic changes)
+            for t in triggers.energy_times:
+                if t >= total_duration:
+                    break
+                if not any(abs(c.timestamp - t) < 0.1 for c in cuts):
+                    cuts.append(PacingCut(
+                        timestamp=float(t),
+                        intensity=0.9,
+                        trigger_type="energy_peak",
+                        confidence=0.8
+                    ))
 
-                cut = PacingCut(
-                    timestamp=timestamp,
-                    intensity=0.5 + (i % 3) * 0.2,  # Varying intensity
-                    trigger_type="ai_generated",
-                    confidence=ai_analysis.pacing_confidence,
-                )
-                cuts.append(cut)
-
-            return cuts[:50]  # Limit cuts
+            # Sort by timestamp
+            cuts.sort(key=lambda x: x.timestamp)
+            
+            # Density control based on strategy
+            if ai_analysis.recommended_strategy == "slow":
+                cuts = cuts[::4]
+            elif ai_analysis.recommended_strategy == "medium":
+                cuts = cuts[::2]
+            
+            logger.info(f"Generated {len(cuts)} base cuts based on audio triggers")
+            return cuts
 
         except Exception as e:
             logger.error(f"Base cut generation failed: {e}")

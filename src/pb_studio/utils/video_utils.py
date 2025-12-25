@@ -177,6 +177,45 @@ def _create_hardware_capture(video_path: str) -> cv2.VideoCapture:
     return cv2.VideoCapture(video_path)
 
 
+
+def create_video_capture(video_path: str | Path, hardware_decode: bool | None = None) -> cv2.VideoCapture:
+    """
+    Create a VideoCapture object with appropriate backend settings.
+    
+    Exposes the internal hardware acceleration logic for persistent use 
+    (e.g., in PreviewWidget where context manager is not suitable).
+    
+    Args:
+        video_path: Path to video file
+        hardware_decode: Force hardware decode (True/False) or Auto (None)
+        
+    Returns:
+        cv2.VideoCapture object (must be released by caller!)
+    """
+    video_path_str = str(video_path)
+    
+    # Auto-detect if not specified
+    use_hw = hardware_decode
+    if use_hw is None and USE_HARDWARE_DECODE:
+        # Check resolution
+        try:
+            probe_cap = cv2.VideoCapture(video_path_str)
+            if probe_cap.isOpened():
+                width = int(probe_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(probe_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                probe_cap.release()
+                use_hw = _should_use_hardware_decode(width, height)
+            else:
+                use_hw = False
+        except Exception:
+            use_hw = False
+
+    if use_hw:
+        return _create_hardware_capture(video_path_str)
+    else:
+        return cv2.VideoCapture(video_path_str)
+
+
 @contextmanager
 def open_video(
     video_path: str | Path, validate: bool = True, hardware_decode: bool | None = None
@@ -215,26 +254,9 @@ def open_video(
             logger.error(f"Video path validation failed: {e}")
             raise
 
-    video_path_str = str(video_path)
+    # Use centralized capture creation
+    cap = create_video_capture(video_path, hardware_decode)
 
-    # GPU-01: Hardware-Decode Auto-Detection
-    use_hw = hardware_decode
-    if use_hw is None and USE_HARDWARE_DECODE:
-        # Schnelle Metadata-Abfrage fuer Auto-Detection
-        probe_cap = cv2.VideoCapture(video_path_str)
-        if probe_cap.isOpened():
-            width = int(probe_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(probe_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            probe_cap.release()
-            use_hw = _should_use_hardware_decode(width, height)
-        else:
-            use_hw = False
-
-    # Erstelle VideoCapture mit oder ohne Hardware-Decode
-    if use_hw:
-        cap = _create_hardware_capture(video_path_str)
-    else:
-        cap = cv2.VideoCapture(video_path_str)
 
     try:
         if not cap.isOpened():

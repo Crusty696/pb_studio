@@ -106,8 +106,8 @@ class DatabaseWorker(QObject):
             if self.session is None:
                 from .connection import get_db_manager
 
-                logger.warning(
-                    "DatabaseWorker: session is None, creating new session via get_db_manager()"
+                logger.info(
+                    "DatabaseWorker: Creating thread-local session via get_db_manager()"
                 )
                 dbm = get_db_manager()
                 self.session = dbm.get_session()

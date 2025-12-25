@@ -391,6 +391,12 @@ class MainWindow(QMainWindow):
         self.audio_analysis_controller.analysis_progress.connect(self._on_audio_analysis_progress)
         self.audio_analysis_controller.analysis_complete.connect(self._on_audio_analysis_complete)
         self.audio_analysis_controller.analysis_error.connect(self._on_audio_analysis_error)
+        
+        # Connect Stem Separation Signals (Decoupled Workflow)
+        self.audio_analysis_controller.stem_started.connect(self._on_stem_started)
+        self.audio_analysis_controller.stem_progress.connect(self._on_stem_progress)
+        self.audio_analysis_controller.stem_complete.connect(self._on_stem_complete)
+        self.audio_analysis_controller.stem_error.connect(self._on_stem_error)
 
         logger.debug("All controllers initialized")
 
@@ -1497,6 +1503,59 @@ class MainWindow(QMainWindow):
                 "audio_analysis",
                 success=False,
                 message="Audio analysis failed",
+            )
+
+    def _on_stem_started(self, audio_path: str):
+        """Handle stem separation started."""
+        logger.info(f"Starting background stem separation: {Path(audio_path).name}")
+        self.update_status("Separating stems...")
+        if self.process_status_widget:
+            self.process_status_widget.start_process(
+                "stem_separation",
+                message="Separating stems (this may take a while)...",
+                determinate=True,
+            )
+
+    def _on_stem_progress(self, percentage: int, status: str):
+        """Handle stem separation progress."""
+        self.update_status(f"Separating stems... {percentage}%")
+        if self.process_status_widget:
+            self.process_status_widget.update_process(
+                "stem_separation",
+                percent=percentage,
+                message=status,
+            )
+
+    def _on_stem_complete(self, results: dict):
+        """Handle stem separation completion."""
+        logger.info(f"Stem separation complete: {results.get('created', False)}")
+        self.update_status("Stem separation complete")
+        
+        if self.process_status_widget:
+            self.process_status_widget.finish_process(
+                "stem_separation",
+                success=True,
+                message="Stems ready",
+            )
+            
+        # Update feature status label if created
+        if results.get("created", False):
+             stems_active = "ON" 
+             stems_ready = "OK"
+             backend = getattr(self, "_vector_backend_cached", "unknown")
+             # Re-update status label if needed or trigger a refresh
+             # Simpler: just log it for now as the label is updated in _update_feature_status
+             logger.info("Stems are now available for this track.")
+
+    def _on_stem_error(self, error_msg: str):
+        """Handle stem separation error."""
+        logger.error(f"Stem separation failed: {error_msg}")
+        self.update_status("Stem separation failed")
+        if self.process_status_widget:
+            self.process_status_widget.finish_process(
+                "stem_separation",
+                success=False,
+                message=f"Stem error: {error_msg}",
             )
 
     def _on_audio_analysis_complete(self, results: dict):

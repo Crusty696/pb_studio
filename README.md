@@ -88,3 +88,16 @@ poetry run pytest
 - FAISS (CPU) or Qdrant (GPU alternative)
 - ONNX Runtime DirectML (AMD GPU)
 - torch-directml (AMD GPU)
+
+## AI-Modelle (Optional)
+
+PB Studio nutzt optionale KI-Modelle für erweiterte Funktionen:
+
+| Modell | Funktion | Download |
+|--------|----------|----------|
+| Moondream2 | Bild-Beschreibung | `python download_models.py` |
+| Phi-3 Mini | Story-Generation | `python download_models.py` |
+| YOLOv8n | Objekt-Erkennung | ✅ Vorinstalliert |
+
+👉 **Details:** [docs/AI_MODELS.md](docs/AI_MODELS.md)
+

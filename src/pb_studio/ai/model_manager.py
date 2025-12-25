@@ -134,20 +134,23 @@ class ModelRegistry:
         # === OBJECT DETECTION (YOLO) ===
 
         # YOLOv8 Nano (Fastest, Good for Realtime)
+        # NOTE: Ultralytics does NOT provide pre-built ONNX files!
+        # We download the official .pt file and convert to ONNX on-demand.
         self.register_model(
             ModelSpec(
                 name="yolov8n_onnx",
                 model_type=ModelType.OBJECT_DETECTION,
                 framework=ModelFramework.ONNX,
-                precision=ModelPrecision.FP16,  # Often FP16 in newer export
+                precision=ModelPrecision.FP16,  # Exported as FP16
                 memory_requirement_mb=100,
                 inference_speed_ms=10,
                 accuracy_score=0.60,  # mAP
                 quality_rating=0.6,
                 speed_rating=0.95,
-                weights_url="https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.onnx",  # Example URL, verify
+                # Official .pt file URL - will be converted to ONNX on download
+                weights_url="https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt",
                 file_name="yolov8n.onnx",
-                sha256="d53da56299d63c22ad661ce050e059174dfed20904374358a99d453009fe9132",  # Placeholder, needs update
+                sha256=None,  # Dynamic conversion, no fixed hash
                 supports_directml=True,
                 max_input_size=(640, 640),
             )
@@ -658,6 +661,9 @@ class SmartModelSelector:
     def download_model(self, name: str, force: bool = False) -> Path | None:
         """
         Download a model if missing or invalid.
+        
+        Supports automatic PT→ONNX conversion for YOLO models:
+        If source is .pt and target is .onnx, the model will be converted automatically.
 
         Args:
             name: Model name
@@ -682,6 +688,16 @@ class SmartModelSelector:
                 return target_path
             logger.warning(f"Model {name} verification failed. Redownloading...")
 
+        # Check if we need PT→ONNX conversion
+        source_is_pt = spec.weights_url.endswith('.pt')
+        target_is_onnx = spec.file_name.endswith('.onnx')
+        needs_conversion = source_is_pt and target_is_onnx
+
+        if needs_conversion:
+            logger.info(f"Downloading {name}: .pt source will be converted to ONNX...")
+            return self._download_and_convert_to_onnx(spec.weights_url, target_path)
+        
+        # Standard download
         logger.info(f"Downloading {name} from {spec.weights_url}...")
         try:
             if self._download_file(spec.weights_url, target_path):
@@ -695,6 +711,98 @@ class SmartModelSelector:
         except Exception as e:
             logger.error(f"Download failed for {name}: {e}")
             return None
+
+    def _download_and_convert_to_onnx(self, pt_url: str, onnx_target: Path) -> Path | None:
+        """
+        Download a .pt file and convert it to ONNX format.
+        
+        Args:
+            pt_url: URL to the .pt file
+            onnx_target: Target path for the .onnx file
+            
+        Returns:
+            Path to converted ONNX file or None if failed
+        """
+        import tempfile
+        
+        # Create temp directory for .pt download
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pt_filename = Path(pt_url).name  # e.g. "yolov8n.pt"
+            pt_path = Path(tmpdir) / pt_filename
+            
+            # Download .pt file
+            logger.info(f"Downloading .pt file from {pt_url}...")
+            try:
+                response = requests.get(pt_url, stream=True, timeout=60)
+                response.raise_for_status()
+                
+                with open(pt_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                
+                logger.info(f"Downloaded {pt_filename} ({pt_path.stat().st_size / 1024 / 1024:.1f} MB)")
+                
+            except Exception as e:
+                logger.error(f"Failed to download .pt file: {e}")
+                return None
+            
+            # Convert to ONNX
+            return self._convert_pt_to_onnx(pt_path, onnx_target)
+
+    def _convert_pt_to_onnx(self, pt_path: Path, onnx_path: Path) -> Path | None:
+        """
+        Convert a PyTorch YOLO model to ONNX format.
+        
+        Uses the ultralytics package for conversion. This ensures DirectML compatibility
+        for AMD GPUs.
+        
+        Args:
+            pt_path: Path to the .pt file
+            onnx_path: Target path for the .onnx file
+            
+        Returns:
+            Path to converted ONNX file or None if failed
+        """
+        try:
+            from ultralytics import YOLO
+            
+            logger.info(f"Converting {pt_path.name} to ONNX format...")
+            
+            # Load model and export to ONNX
+            model = YOLO(str(pt_path))
+            
+            # Export - ultralytics saves next to the .pt file with .onnx extension
+            model.export(
+                format='onnx',
+                imgsz=640,
+                simplify=True,
+                half=True,  # FP16 for faster inference
+            )
+            
+            # The exported file will be next to pt_path
+            exported_onnx = pt_path.with_suffix('.onnx')
+            
+            if exported_onnx.exists():
+                # Move to target location
+                onnx_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(exported_onnx), str(onnx_path))
+                logger.info(f"ONNX model saved to: {onnx_path}")
+                return onnx_path
+            else:
+                logger.error(f"Expected ONNX file not found at: {exported_onnx}")
+                return None
+                
+        except ImportError:
+            logger.warning(
+                "ultralytics package not installed - cannot convert PT to ONNX. "
+                "Install with: pip install ultralytics"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"PT→ONNX conversion failed: {e}")
+            return None
+
 
     def _download_file(self, source: str, target_path: Path, is_repo: bool = False) -> bool:
         """

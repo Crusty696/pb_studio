@@ -26,6 +26,8 @@ librosa = "^0.10.1"
 soundfile = "^0.12.1"
 onnx = {version = "^1.14.0", optional = true}  # Für audio-separator Model-Validierung
 numpy = ">=1.26,<2.0"  # Torch/Numba kompatibel, vermeidet NumPy 2 ABI-Bruch
+opencv-python = "^4.8.0"  # Video/Bild-Verarbeitung (20+ Module)
+scipy = "^1.11.0"  # Signal-Processing (Audio, Energy Curves)
 
 # Vector Search - Multi-Platform Support (choose one or let auto-detection handle it)
 faiss-cpu = {version = "^1.13.0", optional = true, python = ">=3.10,<3.15"}   # CPU-only (all platforms) - actively maintained

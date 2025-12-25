@@ -32,7 +32,7 @@ if exist ".venv\Scripts\activate.bat" (
 echo      Starte PB Studio...
     python main.py
     if errorlevel 1 goto error
-    goto end"EXITCODE=!ERRORLEVEL!"
+    set "EXITCODE=!ERRORLEVEL!"
     goto :done
 )
 

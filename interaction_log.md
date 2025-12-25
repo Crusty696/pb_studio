@@ -1,79 +1,44 @@
-# Interaktions-Protokoll - PB Studio
+# Interaction Log - PB Studio Finalization
 
-## [2025-12-20] - Bereinigung des Projektordners
+## 2025-12-24: Initial Health Check & Status Report
 
-### Benutzeranfrage
-Bereinigung des gesamten Ordners und aller Unterordner. Löschen aller Altlasten, nicht mehr benötigte Daten, Caches, Thumbnails, Testdaten und andere generierte Daten.
+### 1. Codebase vs. App Status
+*   **Startup/Bootstrapper:** Implemented (`src/pb_studio/bootstrapper.py`). Logic for detecting CUDA vs DirectML exists but is causing a crash on AMD systems due to device index misalignment.
+*   **Audio Analysis:** Robust and working. Beat detection, onset detection, and timeline rendering are functional (verified in logs).
+*   **Stem Separation:** **BROKEN** on AMD.
+    *   **Error:** `Windows fatal exception: access violation` in `onnx.shape_inference`.
+    *   **Context:** System detects two GPUs (Integrated + Dedicated RX 7800 XT).
+    *   **Diagnosis:** Bootstrapper sets `DML_VISIBLE_DEVICES=1` to force the dedicated GPU. However, this likely re-indexes the devices so that the dedicated GPU becomes Index 0. If the application then tries to use `Index 1` (based on the original detection), it fails or accesses invalid memory.
+*   **UI Status:**
+    *   Timeline renders correctly.
+    *   Audio loading progress bars work.
+    *   *To be verified:* Remaining TODOs in GUI code.
 
-### Durchführung & Ergebnis
-1. **Verzeichnisbereinigung**: Folgende Ordner wurden rekursiv gelöscht: `audio_cache`, `cache`, `exports`, `logs`, `scene_cache`, `stem_cache`, `temp`, `thumbnails`, `trigger_cache`, `video_cache`, `.ruff_cache`.
-2. **Datei-Bereinigung**: Altlasten und Test-Skripte wie `cross_verify.py`, `deep_scan.py`, `test_full_render.py`, etc. wurden entfernt.
-3. **Datenbank**: Die Tabellen `video_clips`, `clip_motion` und `clip_mood` wurden geleert. 104 Video-Clips wurden entfernt. Die Datenbank wurde via `VACUUM` komprimiert.
-4. **Pycache**: Alle `__pycache__` Verzeichnisse wurden projektweit gelöscht.
+### 2. Log Analysis Findings
+*   **File:** `logs/stem_separation.log` / `logs/app.log`
+*   **Crash Stack Trace:**
+    ```text
+    File "onnx\shape_inference.py", line 58 in infer_shapes
+    File "audio_separator\separator\architectures\mdx_separator.py", line 128 in load_model
+    ...
+    Windows fatal exception: access violation
+    ```
+*   **GPU Detection Log:**
+    ```text
+    INFO | Nutze vom Bootstrapper gesetzte GPU: Unknown (Index 1)
+    INFO | DML_VISIBLE_DEVICES=1 gesetzt (dedizierte GPU)
+    INFO | StemSeparator initialized: Preset=kuielab, DirectML=True
+    ```
 
-**Status**: Abgeschlossen. Das Projekt ist nun in einem sauberen Zustand.
+### 3. Action Items (Immediate)
+1.  **Fix GPU Indexing:** Modify `src/pb_studio/bootstrapper.py` and `src/pb_studio/audio/stem_separator.py`.
+    *   **Strategy:** If `DML_VISIBLE_DEVICES` is set, the application must use Device Index `0` for the ONNX Runtime session, as the filtered view only shows that one GPU.
+2.  **UI Audit:** Complete the scan for `# TODO` items in `src/pb_studio/gui`.
+3.  **Documentation:** Update `README.md` to reflect the actual project (PB Studio).
 
----
+### 4. Remaining Work (from Plan)
+*   [ ] Fix AMD/DirectML Stem Separation Crash.
+*   [ ] Resolve GUI TODOs.
+*   [ ] Update Installer (`.iss`) and Verification Scripts.
+*   [ ] Documentation Cleanup.
 
-## [2025-12-21 08:05] - Analyse V1 vs V2 Plan
-
-### Benutzeranfrage
-Vergleich der bestehenden App Version 1 mit dem neuen Technischen Master-Dokument V2. Frage nach Aufwand für Nachrüstung vs. Neubau.
-
-### Analyse
-*   **Quelle V2:** `Technisches Master-Dokument_ PB Studio (Stand Dez. 2025).md`
-*   **Quelle V1:** Codebasis (`src/pb_studio`, `pyproject.toml`)
-
-### Ergebnis
-*   **Technologie:** Hohe Übereinstimmung (Python 3.10+, PyQt6, FFmpeg, ONNX, Librosa, FAISS).
-*   **Architektur:** V1 ist modular und bietet eine solide Basis für V2.
-*   **Fehlende V2-Features in V1:**
-    *   `check_hardware` Bootstrapper (Strikte Trennung CUDA/DirectML).
-    *   Story-KI (Moondream2 / Phi-3 Integration).
-    *   Keyframe String Generator.
-    *   Einige spezifische Analyse-Module (z.B. Custom Mood Scoring).
-
-### Empfehlung
-Kein Neubau. Die bestehende Codebasis (V1) sollte erweitert und refactored werden ("Nachrüsten"). Der Aufwand ist signifikant geringer als ein Neubau, bei besserer Qualität durch Nutzung bestehender, getesteter Module (Renderer, Datenbank).
-
----
-
-### Update nach Deep-Dive (Code-Prüfung)
-Ich habe zusätzlich `pb_studio.iss` (Installer), `video_analyzer.py` und `ai/model_manager.py` Zeile-für-Zeile geprüft, um sicherzugehen.
-
-**Zusätzliche Erkenntnisse:**
-*   **KI-Framework:** Die Datei `src/pb_studio/ai/model_manager.py` enthält bereits eine hochentwickelte `SmartModelSelector` Logik mit Hardware-Erkennung (CUDA vs. DirectML) und Qualitäts-Scoring. Das ist *genau* das, was V2 fordert. Ein Neubau würde diesen wertvollen Code vernichten.
-*   **Objekterkennung:** V1 nutzt zwar YOLOv8 (Soll: YOLOv10), aber die Integration via ONNX Runtime ist bereits voll implementiert (`object_detector.py`). Ein Upgrade auf v10 ist eine reine Konfigurationssache im `ModelManager`.
-*   **Installer:** `pb_studio.iss` existiert, muss aber für die V2-Bootstrapper-Logik erweitert werden.
-*   **Fazit bleibt:** Die Codebasis ist qualitativ hochwertig und modular. Ein Neubau wäre ein Fehler. Der Weg zur V2 ist ein reines Feature-Upgrade.
-
----
-
-## [2025-12-21 10:30] - Fehlerbehebung App-Start
-
-### Benutzeranfrage
-Fehleranalyse der App basierend auf Terminal-Ausgabe.
-
-### Analyse
-1. **Terminal-Analyse**: 
-    - Log-Datei `logs/app.log` zeigte `ModuleNotFoundError: No module named 'pyperclip'`.
-    - Eine Warnung wies auf fehlendes `imagehash` hin: `visual hashing disabled`.
-
-### Durchführung
-1. **pyperclip**:
-    - Zu `pyproject.toml` hinzugefügt (`^1.8.2`).
-    - Via `pip` in `.venv` installiert.
-2. **imagehash**:
-    - Zu `pyproject.toml` hinzugefügt (`^4.3.1`).
-    - Via `pip` in `.venv` installiert (`PyWavelets` wurde als Abhängigkeit automatisch mitinstalliert).
-
-### Ergebnis & Test
-*   App wurde neu gestartet.
-*   **Kein Absturz mehr.** 
-*   "Main window displayed" im Log bestätigt.
-*   Warnung zu `imagehash` ist verschwunden.
-*   FAISS Fallback (AVX2 statt AVX512) und AMD-Erkennung funktionieren korrekt.
-
-**Status**: Fehler behoben. App startet erfolgreich.
-
----

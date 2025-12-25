@@ -13,7 +13,12 @@ Author: PB_studio Development Team
 import logging
 import os
 import sys
+import faulthandler
 from pathlib import Path
+
+# Enable faulthandler to dump traceback on hard crash
+fault_log = open("fault_dump.log", "w")
+faulthandler.enable(file=fault_log)
 
 # Add src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))

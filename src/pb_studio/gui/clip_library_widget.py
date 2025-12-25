@@ -468,16 +468,16 @@ class ClipLibraryWidget(QWidget):
         Creates DatabaseWorker and QThread, connects signals,
         and starts the thread for non-blocking database queries.
 
-        HIGH-13 FIX: Added try/finally to ensure session cleanup on error.
+        FIX: Session wird im Worker-Thread erstellt (thread-safe).
+        SQLAlchemy Sessions sind nicht thread-safe und sollten im
+        gleichen Thread erstellt und verwendet werden.
         """
         logger.info("Setting up database worker thread...")
 
-        # Create database session (will be used in worker thread)
-        self.session = get_db_session()
-
         try:
-            # Create worker and thread
-            self.db_worker = DatabaseWorker(self.session)
+            # Create worker with session=None - worker creates its own
+            # thread-local session when query_clips is called
+            self.db_worker = DatabaseWorker(None)
             self.db_thread = QThread()
 
             # Move worker to thread
@@ -496,11 +496,7 @@ class ClipLibraryWidget(QWidget):
 
             logger.info("Database worker thread started successfully")
         except Exception as e:
-            # Clean up session if setup fails
             logger.error(f"Failed to setup worker thread: {e}")
-            if self.session:
-                self.session.close()
-                self.session = None
             raise
 
     def load_clips_async(self):

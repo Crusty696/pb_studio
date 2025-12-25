@@ -392,61 +392,76 @@ class CutListController:
             )
 
         # ================================================================
-        # FIX: Add final cut to cover remaining audio duration
+        # FIX: Fill remaining audio duration with MULTIPLE clips
         # ================================================================
-        # Problem: The loop only processes cuts up to len-1 (skips last cut)
-        # This leaves the audio after the last trigger uncovered!
-        # Solution: Add one more cut from timeline_pos to target_duration
-        if cut_with_clips and timeline_pos < target_duration:
-            remaining_duration = target_duration - timeline_pos
-            if remaining_duration >= 0.5:  # Only if meaningful duration remains
-                # Use last clip for final segment (round-robin from remaining clips)
-                last_cut, last_clip_path, last_clip_id = cut_with_clips[-1]
-                clip_info = clips_by_path.get(last_clip_path, {})
-
-                # Get a different clip for variety (round-robin)
-                final_clip_idx = len(cut_list) % len(clips)
-                final_clip = clips[final_clip_idx]
-                final_clip_path = final_clip.get("file_path", last_clip_path)
-                final_clip_path = (
-                    str(resolve_relative_path(final_clip_path)) if final_clip_path else ""
-                )
-                final_clip_duration = final_clip.get("duration", 10.0)
-
-                # Calculate segment for final cut
-                clip_start, actual_duration = calculate_intelligent_clip_segment(
-                    clip_duration=final_clip_duration,
-                    segment_duration=remaining_duration,
-                    trigger_strength=0.5,  # Medium strength for final
-                    previous_clip_end=timeline_pos,
-                    clip_id=str(final_clip.get("id", "final")),
-                )
-
-                # Clamp to remaining duration
-                actual_duration = min(actual_duration, remaining_duration)
-                end_time = timeline_pos + actual_duration
-
-                if actual_duration >= 0.5:
-                    final_metadata = {
-                        "file_path": final_clip_path,
-                        "clip_name": Path(final_clip_path).stem if final_clip_path else "final",
-                        "clip_start": clip_start,
-                        "clip_duration": final_clip_duration,
-                        "trigger_type": "fill",  # Mark as fill cut
-                        "trigger_strength": 0.5,
-                    }
-
-                    final_cut = CutListEntry(
-                        clip_id=final_clip_path,
-                        start_time=timeline_pos,
-                        end_time=end_time,
-                        metadata=final_metadata,
-                    )
-                    cut_list.append(final_cut)
-                    logger.info(
-                        f"✅ Added final fill cut: {timeline_pos:.1f}s - {end_time:.1f}s "
-                        f"({actual_duration:.1f}s remaining audio covered)"
-                    )
+        # Problem: The old code only added ONE final clip, leaving gaps
+        # if remaining duration was longer than one clip interval.
+        # Solution: WHILE-loop that adds clips until target_duration is reached
+        
+        # Use the min_cut_interval (from GUI slider) as fallback interval
+        fallback_interval = min_cut_interval if min_cut_interval > 0 else 4.0
+        fill_clip_idx = len(cut_list) % len(clips)  # Start round-robin where we left off
+        fill_count = 0
+        
+        while timeline_pos < target_duration and clips:
+            remaining = target_duration - timeline_pos
+            if remaining < 0.5:  # Stop if less than 0.5s remains
+                break
+            
+            # Get next clip from pool (round-robin for variety)
+            fill_clip = clips[fill_clip_idx % len(clips)]
+            fill_clip_idx += 1
+            
+            fill_clip_path = fill_clip.get("file_path", "")
+            if not fill_clip_path:
+                continue
+                
+            fill_clip_path = str(resolve_relative_path(fill_clip_path))
+            fill_clip_duration = fill_clip.get("duration", 10.0)
+            
+            # Calculate duration: use fallback_interval or remaining time (whichever is smaller)
+            segment_duration = min(fallback_interval, remaining)
+            
+            # Calculate intelligent clip segment
+            clip_start, actual_duration = calculate_intelligent_clip_segment(
+                clip_duration=fill_clip_duration,
+                segment_duration=segment_duration,
+                trigger_strength=0.5,  # Medium strength for fills
+                previous_clip_end=timeline_pos,
+                clip_id=str(fill_clip.get("id", f"fill_{fill_count}")),
+            )
+            
+            # Clamp to remaining duration
+            actual_duration = min(actual_duration, remaining)
+            if actual_duration < 0.5:
+                break
+                
+            end_time = timeline_pos + actual_duration
+            
+            fill_metadata = {
+                "file_path": fill_clip_path,
+                "clip_name": Path(fill_clip_path).stem if fill_clip_path else "fill",
+                "clip_start": clip_start,
+                "clip_duration": fill_clip_duration,
+                "trigger_type": "fill",  # Mark as fill cut
+                "trigger_strength": 0.5,
+            }
+            
+            fill_cut = CutListEntry(
+                clip_id=fill_clip_path,
+                start_time=timeline_pos,
+                end_time=end_time,
+                metadata=fill_metadata,
+            )
+            cut_list.append(fill_cut)
+            timeline_pos = end_time
+            fill_count += 1
+        
+        if fill_count > 0:
+            logger.info(
+                f"✅ Added {fill_count} fill cuts to cover remaining audio "
+                f"(now at {timeline_pos:.1f}s / {target_duration:.1f}s)"
+            )
 
         # Log Statistiken über Clip-Längen-Variation
         if cut_list:
@@ -591,50 +606,76 @@ class CutListController:
             clip_idx += 1
 
         # ================================================================
-        # FIX: Add final cut to cover remaining audio duration
+        # FIX: Fill remaining audio duration with MULTIPLE clips
         # ================================================================
-        # Problem: The loop only processes cuts up to len-1 (skips last cut)
-        # This leaves the audio after the last trigger uncovered!
-        if pacing_cuts and timeline_pos < target_duration:
-            remaining_duration = target_duration - timeline_pos
-            if remaining_duration >= 0.5:  # Only if meaningful duration remains
-                # Get next clip in round-robin
-                final_clip = clips[clip_idx % len(clips)]
-                final_clip_path = final_clip.get("file_path", "")
-                if final_clip_path:
-                    final_clip_path = str(resolve_relative_path(final_clip_path))
-                    final_clip_duration = final_clip.get("duration", 10.0)
-
-                    clip_start, actual_duration = calculate_intelligent_clip_segment(
-                        clip_duration=final_clip_duration,
-                        segment_duration=remaining_duration,
-                        trigger_strength=0.5,
-                        previous_clip_end=timeline_pos,
-                        clip_id=str(final_clip.get("id", "final")),
-                    )
-
-                    actual_duration = min(actual_duration, remaining_duration)
-                    end_time = timeline_pos + actual_duration
-
-                    if actual_duration >= 0.5:
-                        final_cut = CutListEntry(
-                            clip_id=final_clip_path,
-                            start_time=timeline_pos,
-                            end_time=end_time,
-                            metadata={
-                                "file_path": final_clip_path,
-                                "clip_name": final_clip.get("name", "final"),
-                                "clip_start": clip_start,
-                                "clip_duration": final_clip_duration,
-                                "trigger_type": "fill",
-                                "trigger_strength": 0.5,
-                            },
-                        )
-                        cut_list.append(final_cut)
-                        logger.info(
-                            f"✅ Added final fill cut: {timeline_pos:.1f}s - {end_time:.1f}s "
-                            f"({actual_duration:.1f}s remaining audio covered)"
-                        )
+        # Problem: The old code only added ONE final clip, leaving gaps
+        # if remaining duration was longer than one clip interval.
+        # Solution: WHILE-loop that adds clips until target_duration is reached
+        
+        # Use the min_cut_interval (from GUI slider) as fallback interval
+        fallback_interval = min_cut_interval if min_cut_interval > 0 else 4.0
+        fill_clip_idx = clip_idx  # Continue round-robin where we left off
+        fill_count = 0
+        
+        while timeline_pos < target_duration and clips:
+            remaining = target_duration - timeline_pos
+            if remaining < 0.5:  # Stop if less than 0.5s remains
+                break
+            
+            # Get next clip from pool (round-robin for variety)
+            fill_clip = clips[fill_clip_idx % len(clips)]
+            fill_clip_idx += 1
+            
+            fill_clip_path = fill_clip.get("file_path", "")
+            if not fill_clip_path:
+                continue
+                
+            fill_clip_path = str(resolve_relative_path(fill_clip_path))
+            fill_clip_duration = fill_clip.get("duration", 10.0)
+            
+            # Calculate duration: use fallback_interval or remaining time (whichever is smaller)
+            segment_duration = min(fallback_interval, remaining)
+            
+            # Calculate intelligent clip segment
+            clip_start, actual_duration = calculate_intelligent_clip_segment(
+                clip_duration=fill_clip_duration,
+                segment_duration=segment_duration,
+                trigger_strength=0.5,  # Medium strength for fills
+                previous_clip_end=timeline_pos,
+                clip_id=str(fill_clip.get("id", f"fill_{fill_count}")),
+            )
+            
+            # Clamp to remaining duration
+            actual_duration = min(actual_duration, remaining)
+            if actual_duration < 0.5:
+                break
+                
+            end_time = timeline_pos + actual_duration
+            
+            fill_metadata = {
+                "file_path": fill_clip_path,
+                "clip_name": fill_clip.get("name", "fill"),
+                "clip_start": clip_start,
+                "clip_duration": fill_clip_duration,
+                "trigger_type": "fill",  # Mark as fill cut
+                "trigger_strength": 0.5,
+            }
+            
+            fill_cut = CutListEntry(
+                clip_id=fill_clip_path,
+                start_time=timeline_pos,
+                end_time=end_time,
+                metadata=fill_metadata,
+            )
+            cut_list.append(fill_cut)
+            timeline_pos = end_time
+            fill_count += 1
+        
+        if fill_count > 0:
+            logger.info(
+                f"✅ Added {fill_count} fill cuts to cover remaining audio "
+                f"(now at {timeline_pos:.1f}s / {target_duration:.1f}s)"
+            )
 
         # Log Statistiken über Clip-Längen-Variation
         if cut_list:

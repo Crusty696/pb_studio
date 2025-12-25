@@ -62,6 +62,7 @@ class Config:
         self.config["Hardware"] = {
             "compute_device": "cpu",  # cpu, cuda, cuda:0, etc.
             "use_gpu_rendering": "true",
+            "gpu_reserve": "0.20",  # 20% Reserve (neu hinzugefügt)
         }
 
         # Audio Analysis
@@ -113,7 +114,7 @@ class Config:
             Konfigurationswert oder default
         """
         try:
-            return self.config.get(section, option)
+            return self.config.get(section, option, fallback=default)
         except (configparser.NoSectionError, configparser.NoOptionError):
             logger.warning(
                 f"Konfigurationswert [{section}] {option} nicht gefunden. "
@@ -134,7 +135,7 @@ class Config:
             Integer-Wert oder default
         """
         try:
-            return self.config.getint(section, option)
+            return self.config.getint(section, option, fallback=default)
         except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
             return default
 
@@ -151,7 +152,24 @@ class Config:
             Boolean-Wert oder default
         """
         try:
-            return self.config.getboolean(section, option)
+            return self.config.getboolean(section, option, fallback=default)
+        except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
+            return default
+
+    def get_float(self, section: str, option: str, default: float | None = None) -> float | None:
+        """
+        Holt einen Float-Konfigurationswert.
+
+        Args:
+            section: Section-Name
+            option: Option-Name
+            default: Default-Wert
+
+        Returns:
+            Float-Wert oder default
+        """
+        try:
+            return self.config.getfloat(section, option, fallback=default)
         except (configparser.NoSectionError, configparser.NoOptionError, ValueError):
             return default
 
