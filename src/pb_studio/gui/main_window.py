@@ -44,6 +44,8 @@ from pb_studio.database.crud import (
     update_project,
 )
 from pb_studio.database.models import Base
+# CRITICAL: Import analysis models so tables are registered with Base before create_all()
+from pb_studio.database import models_analysis  # noqa: F401
 from pb_studio.gui.clip_details_widget import ClipDetailsWidget
 from pb_studio.gui.clip_library_widget import ClipLibraryWidget
 from pb_studio.gui.console_widget import ConsoleWidget

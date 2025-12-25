@@ -772,32 +772,85 @@ class VideoRenderer:
 
     def _get_optimal_workers(self) -> int:
         """
-        Bestimme optimale Worker-Anzahl basierend auf Encoder-Typ.
+        Bestimme optimale Worker-Anzahl basierend auf Encoder-Typ und verfügbarem RAM.
 
         GPU-Encoder haben Hardware-Limits für parallele Encoding-Streams:
         - Intel QSV: Max 2-3 parallele Streams
         - NVIDIA NVENC: Max 2-3 parallele Streams (ohne Session-Limit)
         - CPU (libx264): Nutze alle verfügbaren Cores
 
+        FIX: RAM-Monitor - reduziert Workers bei Memory-Pressure.
+
         Returns:
             Optimale Anzahl parallel workers
         """
+        # Basis-Workers basierend auf Encoder
         if self.settings.use_gpu:
             if self.settings.gpu_encoder == "h264_qsv":
                 # Intel QSV: Hardware limit ~2-3 streams
-                return self.WORKERS_QSV
+                base_workers = self.WORKERS_QSV
             elif self.settings.gpu_encoder == "h264_nvenc":
                 # NVIDIA NVENC: Hardware limit ~2-3 streams
-                return self.WORKERS_NVENC
+                base_workers = self.WORKERS_NVENC
             elif self.settings.gpu_encoder == "h264_amf":
                 # AMD AMF: Hardware limit ~2-3 streams
-                return self.WORKERS_AMF
+                base_workers = self.WORKERS_AMF
             else:
                 # Unbekannter GPU-Encoder: Konservativ
-                return self.WORKERS_UNKNOWN_GPU
+                base_workers = self.WORKERS_UNKNOWN_GPU
+        else:
+            # CPU-Encoding: Nutze mehrere Cores (aber nicht zu viele wegen RAM)
+            base_workers = min(os.cpu_count() or self.WORKERS_CPU_MIN, self.WORKERS_CPU_MAX)
+        
+        # FIX: RAM-Monitor - reduziere Workers bei niedriger RAM-Verfügbarkeit
+        workers = self._adjust_workers_for_memory(base_workers)
+        
+        return workers
+    
+    def _adjust_workers_for_memory(self, base_workers: int) -> int:
+        """
+        Passe Worker-Anzahl basierend auf verfügbarem RAM an.
+        
+        Rendering verbraucht ca. 500MB-1GB RAM pro Worker (abhängig von Auflösung).
+        Bei weniger als 4GB freiem RAM reduzieren wir die Worker-Anzahl.
+        
+        Args:
+            base_workers: Basis-Worker-Anzahl (encoder-basiert)
+            
+        Returns:
+            Angepasste Worker-Anzahl
+        """
+        try:
+            import psutil
+            
+            # Verfügbarer RAM in GB
+            available_gb = psutil.virtual_memory().available / (1024 ** 3)
+            
+            # RAM pro Worker (grobe Schätzung)
+            # 1080p: ~500MB, 4K: ~1GB pro Worker
+            ram_per_worker_gb = 0.75 if self.settings.resolution[1] <= 1080 else 1.5
+            
+            # Maximale Worker basierend auf RAM (mit 2GB Puffer für System)
+            max_by_ram = max(1, int((available_gb - 2.0) / ram_per_worker_gb))
+            
+            if max_by_ram < base_workers:
+                logger.warning(
+                    f"RAM-basierte Worker-Reduktion: {base_workers} → {max_by_ram} "
+                    f"(verfügbar: {available_gb:.1f}GB, benötigt: ~{ram_per_worker_gb}GB/Worker)"
+                )
+                return max_by_ram
+            
+            logger.debug(f"RAM ausreichend: {available_gb:.1f}GB für {base_workers} Workers")
+            return base_workers
+            
+        except ImportError:
+            # psutil nicht installiert - verwende Basis-Wert
+            logger.debug("psutil nicht verfügbar, überspringe RAM-Check")
+            return base_workers
+        except Exception as e:
+            logger.warning(f"RAM-Check fehlgeschlagen: {e}")
+            return base_workers
 
-        # CPU-Encoding: Nutze mehrere Cores (aber nicht zu viele wegen RAM)
-        return min(os.cpu_count() or self.WORKERS_CPU_MIN, self.WORKERS_CPU_MAX)
 
     def _calculate_adaptive_batch_size(self, cut_list: list[CutListEntry], max_workers: int) -> int:
         """

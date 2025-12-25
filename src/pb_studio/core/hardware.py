@@ -335,6 +335,10 @@ def detect_onnx_providers() -> list[str]:
     except ImportError:
         logger.debug("ONNX Runtime nicht installiert")
         return []
+    except OSError as e:
+        # DLL load failure (e.g., missing Visual C++ Redistributable)
+        logger.error(f"ONNX Runtime DLL-Fehler: {e}")
+        return []
     except Exception as e:
         logger.error(f"Fehler bei ONNX Provider Detection: {e}")
         return []
@@ -521,6 +525,9 @@ def detect_directml_device() -> str | None:
             return str(device)
     except ImportError:
         logger.debug("torch_directml ist nicht installiert.")
+    except OSError as e:
+        # DLL load failure
+        logger.warning(f"DirectML DLL-Fehler: {e}")
     except Exception as e:
         logger.error(f"Fehler bei der DirectML-Geraeteerkennung: {e}")
     return None

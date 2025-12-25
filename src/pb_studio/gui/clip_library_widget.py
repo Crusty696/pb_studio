@@ -404,11 +404,20 @@ class ClipLibraryWidget(QWidget):
         reload_button.setMaximumWidth(35)
         header_layout.addWidget(reload_button)
 
-        # Import button
+        # Import button (einzelne Dateien)
         import_button = QPushButton("+ Import Clips")
+        import_button.setToolTip("Import einzelne Video-Dateien")
         import_button.clicked.connect(self._import_clips)
         import_button.setMaximumWidth(120)
         header_layout.addWidget(import_button)
+
+        # Import Folder button (ganzer Ordner)
+        import_folder_button = QPushButton("📁 Ordner Import")
+        import_folder_button.setToolTip("Import alle Videos aus einem Ordner")
+        import_folder_button.clicked.connect(self._import_folder)
+        import_folder_button.setMinimumWidth(110)
+        header_layout.addWidget(import_folder_button)
+        logger.info(">>> ORDNER-IMPORT BUTTON ERSTELLT <<< - Version 2025-12-25")
 
         layout.addLayout(header_layout)
 
@@ -1241,6 +1250,62 @@ class ClipLibraryWidget(QWidget):
 
         # Show results using extracted method
         self._show_import_results(imported_count, failed_count, failed_files)
+
+    def _import_folder(self):
+        """
+        Import alle Video-Clips aus einem ausgewählten Ordner.
+
+        Features:
+        - Wählt einen Ordner über OS-Dateidialog
+        - Findet rekursiv alle unterstützten Video-Dateien
+        - Verwendet die bestehende Import-Pipeline mit Progress
+        """
+        # Ordner auswählen
+        folder_path = QFileDialog.getExistingDirectory(
+            self, "Video-Ordner auswählen", "", QFileDialog.Option.ShowDirsOnly
+        )
+
+        if not folder_path:
+            return
+
+        folder = Path(folder_path)
+        logger.info(f"Scanning folder for videos: {folder}")
+
+        # Alle Video-Dateien im Ordner finden (rekursiv)
+        video_files = []
+        for ext in SUPPORTED_VIDEO_FORMATS:
+            video_files.extend(folder.rglob(f"*{ext}"))
+            video_files.extend(folder.rglob(f"*{ext.upper()}"))  # Auch Großbuchstaben
+
+        # Duplikate entfernen und sortieren
+        video_paths = sorted(set(str(f) for f in video_files))
+
+        if not video_paths:
+            QMessageBox.information(
+                self,
+                "Keine Videos gefunden",
+                f"Im Ordner '{folder.name}' wurden keine unterstützten Video-Dateien gefunden.\n\n"
+                f"Unterstützte Formate: {', '.join(SUPPORTED_VIDEO_FORMATS)}"
+            )
+            return
+
+        # Bestätigung bei vielen Dateien
+        if len(video_paths) > 50:
+            reply = QMessageBox.question(
+                self,
+                "Viele Dateien gefunden",
+                f"Es wurden {len(video_paths)} Video-Dateien gefunden.\n\n"
+                f"Möchten Sie alle importieren?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        logger.info(f"Found {len(video_paths)} videos in folder, starting import...")
+
+        # Benutze die bestehende programmatische Import-Funktion
+        self.import_clips_programmatic(video_paths, show_progress=True, show_results=True)
 
     def import_clips_programmatic(
         self, file_paths: list, show_progress: bool = True, show_results: bool = True

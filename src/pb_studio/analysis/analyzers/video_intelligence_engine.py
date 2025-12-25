@@ -46,6 +46,7 @@ class VideoSceneRecognition:
     # Kombinierte Intelligenz
     combined_tags: list[str] = None  # Finale Tags aus beiden Systemen
     quality_score: float = 0.0  # Gesamt-Qualität der Erkennung (0-1)
+    frame_index: int = 0  # Frame-Index für Referenz bei Video-Analyse
 
     def to_dict(self) -> dict:
         """Konvertiert zu Dictionary für DB-Speicherung."""
@@ -55,6 +56,7 @@ class VideoSceneRecognition:
             "confidence": self.confidence,
             "combined_tags": self.combined_tags,
             "quality_score": self.quality_score,
+            "frame_index": self.frame_index,
         }
 
         if self.traditional_analysis:
@@ -221,7 +223,7 @@ class VideoIntelligenceEngine:
                 frame_cv = np.array(frame)
                 if frame_cv.shape[2] == 3:  # RGB to BGR for OpenCV
                     frame_cv = cv2.cvtColor(frame_cv, cv2.COLOR_RGB2BGR)
-                traditional_result = self.scene_analyzer.analyze_frame(frame_cv)
+                traditional_result = self.scene_analyzer.analyze(frame_cv)
 
             # Kombiniere Results für finale Tags
             combined_tags = self._combine_analysis_results(semantic_scores, traditional_result)

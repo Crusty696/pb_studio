@@ -25,10 +25,71 @@ class Bootstrapper:
         self.env_vars: dict[str, str] = {}
 
     def check_requirements(self) -> bool:
-        """Check critical validation requirements."""
-        # 1. Check Python Version (implicitly handled by dependencies, but good for sanity)
+        """Check critical validation requirements before app start."""
+        errors: list[str] = []
         
+        # 1. Check Python Version (3.10-3.12 supported)
+        if sys.version_info < (3, 10) or sys.version_info >= (3, 13):
+            errors.append(
+                f"Python {sys.version_info.major}.{sys.version_info.minor} nicht unterstützt. "
+                "Benötigt: 3.10, 3.11 oder 3.12"
+            )
+        
+        # 2. Check ONNX Runtime (critical for AI features)
+        try:
+            import onnxruntime
+            logger.debug(f"ONNX Runtime Version: {onnxruntime.__version__}")
+        except ImportError:
+            errors.append("onnxruntime nicht installiert (pip install onnxruntime)")
+        except OSError as e:
+            # DLL load failure (e.g., missing Visual C++ Redistributable)
+            if "DLL" in str(e).upper():
+                errors.append(
+                    "ONNX Runtime DLL-Fehler: Visual C++ 2015-2022 Redistributable fehlt.\n"
+                    "   Download: https://aka.ms/vs/17/release/vc_redist.x64.exe"
+                )
+            else:
+                errors.append(f"ONNX Runtime Systemfehler: {e}")
+        
+        # 3. Check PyQt6 (critical for GUI)
+        try:
+            import PyQt6.QtWidgets
+        except ImportError:
+            errors.append("PyQt6 nicht installiert (pip install PyQt6)")
+        except OSError as e:
+            errors.append(f"PyQt6 Systemfehler: {e}")
+        
+        # 4. Check FFmpeg/FFprobe (critical for video rendering)
+        ffmpeg_available = self._check_ffmpeg_available()
+        if not ffmpeg_available:
+            errors.append(
+                "FFmpeg/FFprobe nicht gefunden.\n"
+                "   Video-Rendering ist ohne FFmpeg nicht möglich.\n"
+                "   Download: https://www.gyan.dev/ffmpeg/builds/ (ffmpeg-release-essentials.zip)\n"
+                "   Installation: Entpacken und 'bin' Ordner zum PATH hinzufügen."
+            )
+        
+        if errors:
+            self._show_startup_errors(errors)
+            return False
+        
+        logger.info("Alle kritischen Abhängigkeiten vorhanden.")
         return True
+
+    def _show_startup_errors(self, errors: list[str]):
+        """Zeigt kritische Startfehler als Dialog oder Konsole."""
+        error_text = "PB Studio kann nicht starten:\n\n" + "\n".join(f"• {e}" for e in errors)
+        error_text += "\n\nBitte fehlende Abhängigkeiten installieren."
+        
+        logger.critical(error_text)
+        
+        try:
+            from PyQt6.QtWidgets import QApplication, QMessageBox
+            app = QApplication.instance() or QApplication([])
+            QMessageBox.critical(None, "PB Studio - Startfehler", error_text)
+        except Exception:
+            # Fallback: Konsole
+            print(f"\n{'='*60}\nKRITISCHER FEHLER\n{'='*60}\n{error_text}\n{'='*60}")
 
     def detect_hardware(self) -> HardwareStrategy:
         """
@@ -60,6 +121,43 @@ class Bootstrapper:
             pass
         return False
 
+    def _check_ffmpeg_available(self) -> bool:
+        """
+        Check if FFmpeg and FFprobe are available.
+        
+        Tries to find executables via:
+        1. Local bin folder (project/bin)
+        2. System PATH
+        """
+        import shutil
+        
+        exe_suffix = ".exe" if self.system == "Windows" else ""
+        
+        # Check for both ffmpeg and ffprobe
+        for exe_name in ["ffmpeg", "ffprobe"]:
+            exe_full = exe_name + exe_suffix
+            
+            # 1. Check local bin folder
+            from pathlib import Path
+            project_root = Path(__file__).parent.parent.parent
+            local_bin = project_root / "bin" / exe_full
+            if local_bin.exists():
+                logger.debug(f"Found {exe_name} at: {local_bin}")
+                continue
+            
+            # 2. Check system PATH
+            path_on_system = shutil.which(exe_name)
+            if path_on_system:
+                logger.debug(f"Found {exe_name} on PATH: {path_on_system}")
+                continue
+            
+            # Not found
+            logger.warning(f"{exe_name} not found in local bin or system PATH")
+            return False
+        
+        logger.info("FFmpeg und FFprobe verfügbar.")
+        return True
+
     def _is_directml_available(self) -> bool:
         """
         Check if onnxruntime-directml is available and supported.
@@ -86,6 +184,9 @@ class Bootstrapper:
 
         except ImportError:
             pass
+        except OSError as e:
+            # DLL load failure
+            logger.warning(f"DirectML DLL-Fehler: {e}")
         except Exception as e:
             logger.debug(f"DirectML check failed: {e}")
         return False
@@ -179,6 +280,9 @@ class Bootstrapper:
 
         except ImportError:
             logger.debug("torch_directml not available for GPU detection")
+        except OSError as e:
+            # DLL load failure (e.g., missing DirectML.dll)
+            logger.warning(f"DirectML DLL-Fehler bei GPU-Erkennung: {e}")
         except Exception as e:
             logger.warning(f"Dedicated GPU detection failed: {e}")
 
